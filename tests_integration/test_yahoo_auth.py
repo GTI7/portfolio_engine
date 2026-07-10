@@ -14,14 +14,9 @@ network call or the heavier tests_ha/ harness.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components" / "portfolio_engine"))
-
-from yahoo_auth import YahooAuthError, YahooCrumbFetcher  # noqa: E402
+from custom_components.portfolio_engine.yahoo_auth import YahooAuthError, YahooCrumbFetcher
 
 
 class FakeResponse:
