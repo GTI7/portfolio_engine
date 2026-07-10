@@ -14,6 +14,11 @@ richer dashboard cards — culminating in this v1.0.0 release. See
 `MILESTONE_10.md` and `docs/QUALITY_SCALE.md` for exactly what that does
 and doesn't mean.
 
+**The integration has since moved to v1.0.1** (a targeted Yahoo Finance
+401 fix plus a test-infrastructure cleanup, not a milestone) — see
+`CHANGELOG.md` and `PROJECT_STATUS.md` for the current version of each
+independently-versioned component.
+
 **New to using (not building) this integration?** Start at
 [`docs/user/README.md`](docs/user/README.md) instead of here — this README
 and everything else at the repository root is for people working on the
@@ -35,7 +40,7 @@ portfolio_engine/
 ├── repositories/                    # data retrieval — no calculation (ADR-0001)
 ├── providers/                       # market data — no portfolio data (ADR-0002)
 ├── importers/                       # broker export -> Transaction[] (ADR-0013)
-├── custom_components/portfolio_engine/   # the Home Assistant integration (v1.0.0)
+├── custom_components/portfolio_engine/   # the Home Assistant integration (v1.0.1)
 │   ├── manifest.json, const.py
 │   ├── config_flow.py                # + multi-entry support + reconfigure flow (Milestone 10)
 │   ├── coordinator.py
