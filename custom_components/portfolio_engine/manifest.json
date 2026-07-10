@@ -1,0 +1,12 @@
+{
+  "domain": "portfolio_engine",
+  "name": "Portfolio Engine",
+  "version": "1.0.0",
+  "documentation": "https://github.com/example/ha-portfolio-engine",
+  "issue_tracker": "https://github.com/example/ha-portfolio-engine/issues",
+  "requirements": ["pyyaml>=6.0"],
+  "codeowners": ["@example"],
+  "config_flow": true,
+  "iot_class": "cloud_polling",
+  "integration_type": "hub"
+}

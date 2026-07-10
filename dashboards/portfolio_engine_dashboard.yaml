@@ -1,0 +1,299 @@
+# Portfolio Engine — Official Dashboard Package
+#
+# A ready-to-import Lovelace dashboard exposing every Portfolio Engine
+# entity, in six views: Overview, Performance, Allocation, Transactions,
+# Analytics, Health. Built entirely from CORE Lovelace card types (entities,
+# glance, markdown) — no HACS custom cards required, so this works on any
+# Home Assistant install with Portfolio Engine set up, nothing else.
+#
+# --- Before you import this ---------------------------------------------
+#
+# Every entity ID below is prefixed "demo_portfolio" (this repo's sample
+# portfolio). Your real portfolio's prefix is whatever you named its
+# subfolder under your investments path (e.g. investments/my_portfolio/
+# -> sensor.my_portfolio_value). Find-and-replace "demo_portfolio" with
+# your own portfolio's folder name throughout this file before importing —
+# every entity ID in Home Assistant follows the same
+# sensor.<portfolio_id>_<metric> pattern (see docs/ENTITY_CONTRACTS.md).
+#
+# --- How to import ---------------------------------------------------------
+#
+# 1. Settings -> Dashboards -> Add Dashboard -> "New dashboard from scratch".
+# 2. Give it a name (e.g. "Portfolio"), then open it and click the
+#    three-dot menu (top right) -> Edit Dashboard -> three-dot menu again
+#    -> "Raw configuration editor".
+# 3. Delete the placeholder content and paste this entire file's content
+#    (after find-and-replacing "demo_portfolio" with your portfolio ID).
+# 4. Save.
+#
+# No entities beyond the fourteen Portfolio Engine already creates are
+# referenced anywhere in this file — nothing here requires a helper entity,
+# a template sensor, or any other setup beyond having the integration
+# configured. See docs/user/DASHBOARDS.md for a longer walkthrough.
+
+title: Portfolio
+views:
+  # ============================================================ Overview ===
+  - title: Overview
+    path: overview
+    icon: mdi:view-dashboard
+    cards:
+      - type: markdown
+        content: >
+          ## {{ state_attr('sensor.demo_portfolio_positions', 'portfolio_name') or 'Portfolio' }}
+
+          Last updated: {{ relative_time(states.sensor.demo_portfolio_value.last_updated) }} ago
+      - type: entities
+        title: At a Glance
+        entities:
+          - entity: sensor.demo_portfolio_value
+          - entity: sensor.demo_portfolio_total_invested
+          - entity: sensor.demo_portfolio_total_profit
+          - entity: sensor.demo_portfolio_roi
+          - entity: sensor.demo_portfolio_cash_balance
+      - type: entities
+        title: Returns
+        entities:
+          - entity: sensor.demo_portfolio_money_weighted_return
+          - entity: sensor.demo_portfolio_time_weighted_return
+      - type: entities
+        title: Status
+        entities:
+          - entity: sensor.demo_portfolio_reconciliation
+          - entity: sensor.demo_portfolio_positions
+          - entity: sensor.demo_portfolio_transaction_count
+
+  # ========================================================== Performance ===
+  - title: Performance
+    path: performance
+    icon: mdi:chart-line
+    cards:
+      - type: gauge
+        entity: sensor.demo_portfolio_roi
+        name: ROI
+        min: -50
+        max: 50
+        needle: true
+        severity:
+          red: -50
+          yellow: 0
+          green: 10
+      - type: entities
+        title: Return Metrics
+        entities:
+          - entity: sensor.demo_portfolio_roi
+            name: ROI (invested capital basis)
+          - entity: sensor.demo_portfolio_money_weighted_return
+            name: Money-Weighted Return (XIRR)
+          - entity: sensor.demo_portfolio_time_weighted_return
+            name: Time-Weighted Return (cumulative)
+      - type: markdown
+        title: Time-Weighted Return, Annualized (CAGR)
+        content: >
+          {% if state_attr('sensor.demo_portfolio_time_weighted_return', 'annualized_pct') is not none %}
+          **{{ state_attr('sensor.demo_portfolio_time_weighted_return', 'annualized_pct') }}%** annualized,
+          based on {{ state_attr('sensor.demo_portfolio_time_weighted_return', 'periods_used') }} period(s)
+          of snapshot history.
+          {% else %}
+          Not enough snapshot history yet to compute an annualized figure.
+          Portfolio Engine takes one snapshot per day, so this becomes
+          available once at least one prior day's snapshot exists.
+          {% endif %}
+      - type: markdown
+        title: What These Numbers Mean
+        content: >
+          - **ROI** — simple return on invested capital, ignores timing.
+          - **MWR (XIRR)** — annualized, sensitive to *when* and *how much*
+            you deposited or withdrew — reflects your personal timing.
+          - **TWR** — annualized (CAGR) and cumulative, with deposit/withdrawal
+            timing removed — reflects the portfolio's own investment
+            performance, independent of your cash-flow decisions.
+
+          A `%` state of `unknown` means that metric doesn't have enough
+          data yet (e.g. no transaction history for MWR, or fewer than two
+          snapshots for TWR) — check each entity's `status` attribute for
+          the specific reason.
+
+  # =========================================================== Allocation ===
+  - title: Allocation
+    path: allocation
+    icon: mdi:chart-pie
+    cards:
+      - type: gauge
+        entity: sensor.demo_portfolio_concentration
+        name: Largest Position (% of Portfolio)
+        min: 0
+        max: 100
+        severity:
+          green: 0
+          yellow: 25
+          red: 50
+      - type: glance
+        title: Concentration
+        entities:
+          - entity: sensor.demo_portfolio_concentration
+            name: Largest Position
+      - type: markdown
+        title: Holdings
+        content: >
+          | Symbol | Shares | Value | Gain % |
+          |---|---|---|---|
+          {% for p in state_attr('sensor.demo_portfolio_positions', 'positions') or [] %}
+          | {{ p.holding.symbol }} | {{ p.holding.shares }} | {{ p.market_value_base | round(2) }} | {{ p.gain_pct | round(2) }}% |
+          {% endfor %}
+      - type: markdown
+        title: Concentration Detail
+        content: >
+          {% set largest = state_attr('sensor.demo_portfolio_concentration', 'largest_position') %}
+          {% set winner = state_attr('sensor.demo_portfolio_concentration', 'largest_winner') %}
+          {% set loser = state_attr('sensor.demo_portfolio_concentration', 'largest_loser') %}
+          - **Largest position:** {{ largest.symbol if largest else 'n/a' }}
+            ({{ largest.pct_of_portfolio if largest else 0 }}% of portfolio)
+          - **Top 5 concentration:** {{ state_attr('sensor.demo_portfolio_concentration', 'top5_concentration_pct') }}%
+          - **Diversification score:** {{ state_attr('sensor.demo_portfolio_concentration', 'diversification_score') }}/100
+            (higher is more diversified)
+          - **Best performer:** {{ winner.symbol if winner else 'n/a' }}
+            ({{ winner.gain_pct if winner else 0 }}%)
+          - **Worst performer:** {{ loser.symbol if loser else 'n/a' }}
+            ({{ loser.gain_pct if loser else 0 }}%)
+
+  # ========================================================= Transactions ===
+  - title: Transactions
+    path: transactions
+    icon: mdi:swap-horizontal
+    cards:
+      - type: entities
+        title: Summary
+        entities:
+          - entity: sensor.demo_portfolio_transaction_count
+      - type: markdown
+        title: Recent Activity
+        content: >
+          | Date | Type | Symbol | Shares | Amount |
+          |---|---|---|---|---|
+          {% for t in state_attr('sensor.demo_portfolio_transaction_count', 'recent') or [] %}
+          | {{ as_timestamp(t.date) | timestamp_custom('%Y-%m-%d') }} | {{ t.type }} | {{ t.symbol or '-' }} | {{ t.shares or '-' }} | {{ t.amount }} {{ t.currency }} |
+          {% endfor %}
+        # Shows up to the 10 most recent transactions. For the full
+        # history, edit your investments/<portfolio>/transactions.yaml
+        # directly, or check Settings -> Devices & Services -> Portfolio
+        # Engine -> Download Diagnostics for full-log statistics.
+
+  # ============================================================ Analytics ===
+  - title: Analytics
+    path: analytics
+    icon: mdi:chart-bell-curve
+    cards:
+      - type: entities
+        title: Income & Risk
+        entities:
+          - entity: sensor.demo_portfolio_dividend_income
+            name: Dividend Income (rolling 12mo)
+          - entity: sensor.demo_portfolio_drawdown
+            name: Current Drawdown
+          - entity: sensor.demo_portfolio_volatility
+            name: Volatility (annualized)
+      - type: markdown
+        title: Dividend Detail
+        content: >
+          - **Lifetime:** {{ state_attr('sensor.demo_portfolio_dividend_income', 'lifetime') }} {{ state_attr('sensor.demo_portfolio_value', 'unit_of_measurement') }}
+          - **This year:** {{ state_attr('sensor.demo_portfolio_dividend_income', 'current_year') }}
+          - **Yield:** {{ state_attr('sensor.demo_portfolio_dividend_income', 'dividend_yield_pct') }}%
+          - **Average monthly:** {{ state_attr('sensor.demo_portfolio_dividend_income', 'average_monthly_dividend') }}
+      - type: markdown
+        title: Drawdown Detail
+        content: >
+          - **Maximum drawdown ever:** {{ state_attr('sensor.demo_portfolio_drawdown', 'maximum_drawdown_pct') }}%
+          - **Peak value:** {{ state_attr('sensor.demo_portfolio_drawdown', 'peak_value') }}
+          - **Recovery status:** {{ state_attr('sensor.demo_portfolio_drawdown', 'recovery_status') }}
+
+  # ================================================================ Health ===
+  - title: Health
+    path: health
+    icon: mdi:shield-check
+    cards:
+      - type: entities
+        title: Data Integrity
+        entities:
+          - entity: sensor.demo_portfolio_reconciliation
+      - type: markdown
+        title: Reconciliation Discrepancies
+        content: >
+          {% set status = states('sensor.demo_portfolio_reconciliation') %}
+          {% if status == 'ok' %}
+          ✅ No discrepancies — your declared holdings and cash balance
+          match what your transaction log implies.
+          {% elif status == 'no_data' %}
+          ℹ️ No transaction history recorded yet, so nothing to check
+          against. This is normal for a portfolio you haven't started
+          logging transactions for.
+          {% else %}
+          {% for d in state_attr('sensor.demo_portfolio_reconciliation', 'discrepancies') or [] %}
+          - **{{ d.symbol or 'Cash balance' }}** ({{ d.field }}): declared
+            {{ d.declared }}, transaction log implies {{ d.reconstructed }}
+            (difference: {{ d.difference }})
+          {% endfor %}
+          {% endif %}
+      - type: markdown
+        title: Data Availability
+        content: >
+          {% set missing_quotes = state_attr('sensor.demo_portfolio_positions', 'symbols_missing_quotes') or [] %}
+          {% set missing_fx = state_attr('sensor.demo_portfolio_positions', 'fx_rates_missing') or [] %}
+          {% if not missing_quotes and not missing_fx %}
+          ✅ All prices and exchange rates are current.
+          {% else %}
+          {% if missing_quotes %}
+          ⚠️ **Missing quotes for:** {{ missing_quotes | join(', ') }}
+          {% endif %}
+          {% if missing_fx %}
+          ⚠️ **Missing exchange rates for:** {{ missing_fx | join(', ') }}
+          {% endif %}
+          {% endif %}
+
+          Check Settings → Devices & Services → Portfolio Engine → ⋮ →
+          System, for any open Repair issues with more detail.
+
+  # ========================================================= Import/Backup ===
+  - title: Import / Backup
+    path: import
+    icon: mdi:file-import
+    cards:
+      - type: entities
+        title: Last Import
+        entities:
+          - entity: sensor.demo_portfolio_last_import
+      - type: markdown
+        title: Details
+        content: >
+          {% set status = state_attr('sensor.demo_portfolio_last_import', 'status') %}
+          {% if status == 'never_imported' %}
+          No import has been run yet for this portfolio. Use the
+          `portfolio_engine.import_transactions` service (Developer Tools
+          → Actions, or a script/automation) to import a broker export.
+          See docs/user/BROKER_IMPORT.md for the exact steps.
+          {% else %}
+          - **Provider:** {{ state_attr('sensor.demo_portfolio_last_import', 'provider') }}
+          - **When:** {{ state_attr('sensor.demo_portfolio_last_import', 'as_of') }}
+          - **Read:** {{ state_attr('sensor.demo_portfolio_last_import', 'transactions_read') }}
+          - **Imported:** {{ state_attr('sensor.demo_portfolio_last_import', 'imported') }}
+          - **Duplicates:** {{ state_attr('sensor.demo_portfolio_last_import', 'duplicates') }}
+          - **Rejected:** {{ state_attr('sensor.demo_portfolio_last_import', 'rejected') }}
+
+          {% for w in state_attr('sensor.demo_portfolio_last_import', 'warnings') or [] %}
+          ⚠️ {{ w }}
+          {% endfor %}
+          {% endif %}
+
+          **Reminder:** importing only produces a report - it does not
+          modify transactions.yaml automatically. Review the imported
+          transactions and add them to your log yourself. See
+          docs/user/BROKER_IMPORT.md.
+      - type: markdown
+        title: Backup
+        content: >
+          Run **Portfolio Engine: Export portfolio data** (Developer Tools
+          → Actions) any time to write a complete JSON backup of this
+          portfolio's holdings, transactions, and snapshot history to a
+          file you choose. See docs/user/BACKUP_EXPORT.md — including how
+          to schedule it automatically with a simple Home Assistant
+          automation.

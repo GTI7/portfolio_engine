@@ -1,0 +1,21 @@
+name: Demo Portfolio
+base_currency: USD
+cash_balance: 5000.00
+holdings:
+  - symbol: AAPL
+    shares: 12
+    avg_price: 165.20
+    currency: USD
+    type: stock
+
+  - symbol: MSFT
+    shares: 8
+    avg_price: 310.00
+    currency: USD
+    type: stock
+
+  - symbol: BTC-USD
+    shares: 0.15
+    avg_price: 42000.00
+    currency: USD
+    type: crypto

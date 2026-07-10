@@ -1,0 +1,64 @@
+import_transactions:
+  name: Import transactions
+  description: >-
+    Parse a broker export file and report what it contains (read, imported,
+    duplicates, rejected) against a portfolio's current transaction log.
+    Does NOT write to transactions.yaml automatically - review the report,
+    then add the transactions yourself. See docs/user/BROKER_IMPORT.md.
+  fields:
+    portfolio:
+      name: Portfolio
+      description: >-
+        The portfolio ID to import into (the folder name under your
+        investments path, e.g. "demo_portfolio").
+      required: true
+      example: demo_portfolio
+      selector:
+        text:
+    provider:
+      name: Provider
+      description: Which broker export format the file is in.
+      required: true
+      example: generic_csv
+      selector:
+        select:
+          options:
+            - label: Generic CSV
+              value: generic_csv
+            - label: Interactive Brokers Flex Query (XML)
+              value: ibkr_flex_query
+    file_path:
+      name: File path
+      description: >-
+        Path to the export file, relative to your Home Assistant config
+        directory (e.g. "imports/ibkr_export.xml").
+      required: true
+      example: imports/broker_export.csv
+      selector:
+        text:
+
+export_portfolio_data:
+  name: Export portfolio data
+  description: >-
+    Write a single JSON backup file containing a portfolio's holdings,
+    full transaction history, snapshot history, and last import report.
+    Writes to the exact path you specify - never overwrites
+    transactions.yaml or any file this integration already manages.
+  fields:
+    portfolio:
+      name: Portfolio
+      description: The portfolio ID to export (the folder name under your investments path).
+      required: true
+      example: demo_portfolio
+      selector:
+        text:
+    output_path:
+      name: Output file path
+      description: >-
+        Where to write the backup file, relative to your Home Assistant
+        config directory (e.g. "backups/demo_portfolio_2026-07-10.json").
+        Parent folders are created automatically if they don't exist.
+      required: true
+      example: backups/demo_portfolio_backup.json
+      selector:
+        text:

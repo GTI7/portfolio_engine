@@ -1,0 +1,46 @@
+[project]
+name = "portfolio-engine"
+version = "0.1.0"
+description = "HA-independent calculation core for the Home Assistant investment dashboard project"
+requires-python = ">=3.11"
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8.0", "pytest-asyncio>=0.24"]
+dev = ["mypy>=1.10", "ruff>=0.6"]
+
+# --- mypy -------------------------------------------------------------
+# Scoped to engine/, repositories/, providers/ only. tests/ is intentionally
+# excluded from strict typing — test fixtures (make_position, fake fetchers)
+# trade a bit of type precision for readability, which is an acceptable
+# tradeoff in test code specifically.
+[tool.mypy]
+python_version = "3.11"
+files = ["engine", "repositories", "providers", "importers"]
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "yaml.*"
+ignore_missing_imports = true
+
+# --- ruff -------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+extend-exclude = [".ha_test_venv", "ha_test_venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+# B008 (function calls in default args) is noisy with dataclasses' field()
+# default_factory pattern used throughout engine/models.py — that's the
+# correct idiom there, not a bug, so it's excluded rather than worked around.
+ignore = ["B008"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["engine", "repositories", "providers"]

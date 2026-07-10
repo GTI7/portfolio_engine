@@ -1,0 +1,109 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Set up Portfolio Engine",
+        "description": "Path is relative to your Home Assistant config directory (e.g. 'investments').",
+        "data": {
+          "investments_path": "Investments folder path",
+          "update_interval_minutes": "Update interval (minutes)"
+        }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Portfolio Engine",
+        "description": "Change the investments folder path or update interval for this entry. Path is relative to your Home Assistant config directory.",
+        "data": {
+          "investments_path": "Investments folder path",
+          "update_interval_minutes": "Update interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "investments_path_not_found": "That path doesn't exist under your Home Assistant config directory."
+    },
+    "abort": {
+      "already_configured": "A Portfolio Engine entry for that investments path already exists.",
+      "reconfigure_successful": "Reconfiguration was successful."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "data": {
+          "update_interval_minutes": "Update interval (minutes)"
+        }
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "portfolio_value": { "name": "Value" },
+      "portfolio_total_invested": { "name": "Total Invested" },
+      "portfolio_total_profit": { "name": "Total Profit" },
+      "portfolio_roi": { "name": "ROI" },
+      "portfolio_cash_balance": { "name": "Cash Balance" },
+      "portfolio_positions": { "name": "Positions" },
+      "portfolio_transaction_count": { "name": "Transaction Count" },
+      "portfolio_reconciliation": { "name": "Reconciliation" },
+      "portfolio_mwr": { "name": "Money-Weighted Return" },
+      "portfolio_twr": { "name": "Time-Weighted Return" },
+      "portfolio_dividend_income": { "name": "Dividend Income" },
+      "portfolio_drawdown": { "name": "Drawdown" },
+      "portfolio_volatility": { "name": "Volatility" },
+      "portfolio_concentration": { "name": "Concentration" },
+      "portfolio_last_import": { "name": "Last Import" }
+    }
+  },
+  "services": {
+    "import_transactions": {
+      "name": "Import transactions",
+      "description": "Parse a broker export file and report what it contains against a portfolio's current transaction log. Does not write to transactions.yaml automatically.",
+      "fields": {
+        "portfolio": {
+          "name": "Portfolio",
+          "description": "The portfolio ID to import into (the folder name under your investments path)."
+        },
+        "provider": {
+          "name": "Provider",
+          "description": "Which broker export format the file is in."
+        },
+        "file_path": {
+          "name": "File path",
+          "description": "Path to the export file, relative to your Home Assistant config directory."
+        }
+      }
+    },
+    "export_portfolio_data": {
+      "name": "Export portfolio data",
+      "description": "Write a single JSON backup file containing a portfolio's holdings, transaction history, snapshot history, and last import report.",
+      "fields": {
+        "portfolio": {
+          "name": "Portfolio",
+          "description": "The portfolio ID to export (the folder name under your investments path)."
+        },
+        "output_path": {
+          "name": "Output file path",
+          "description": "Where to write the backup file, relative to your Home Assistant config directory."
+        }
+      }
+    }
+  },
+  "issues": {
+    "malformed_transaction_history": {
+      "title": "Portfolio Engine: invalid transaction or holdings data",
+      "description": "Your transactions.yaml or holdings.yaml file has invalid data and could not be loaded: {error}\n\nCheck the file for typos, missing required fields, or invalid values (e.g. negative shares), then reload the integration."
+    },
+    "reconciliation_discrepancy": {
+      "title": "Portfolio Engine: reconciliation discrepancy",
+      "description": "Your declared holdings/cash balance don't match what your transaction log implies ({count} discrepancy(ies) found). Check the Reconciliation entity's attributes for details, and compare your holdings.yaml against your actual transaction history.\n\nThis does not affect your other portfolio figures - it's a data-integrity check, not an error in your portfolio value."
+    },
+    "missing_fx_rates": {
+      "title": "Portfolio Engine: missing exchange rates",
+      "description": "Could not fetch a current exchange rate for: {currencies}. Affected positions are using a 1:1 fallback rate, which will be inaccurate until the rate becomes available again.\n\nThis is usually temporary (a provider outage or rate limit) and resolves on its own within a few update cycles."
+    },
+    "snapshot_repository_unavailable": {
+      "title": "Portfolio Engine: snapshot storage unavailable",
+      "description": "Could not read or write portfolio snapshot history: {error}\n\nYour current prices and positions are unaffected, but historical performance metrics (time-weighted return, volatility, drawdown) may be missing or incomplete until this resolves. This usually indicates a Home Assistant storage issue - check available disk space and the Home Assistant logs."
+    }
+  }
+}
