@@ -48,6 +48,7 @@ from .providers.yahoo_finance_currency import YahooFinanceCurrencyProvider
 from .repositories.yaml_repository import YamlRepository
 from .store_snapshot_repository import StoreSnapshotRepository
 from .update_logic import PortfolioDataUnavailable, async_fetch_portfolio_data
+from .yahoo_auth import YahooCrumbFetcher
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -112,13 +113,17 @@ class PortfolioCoordinator(DataUpdateCoordinator[dict[str, Any]]):
 
         session = async_get_clientsession(hass)
 
-        async def _fetch(url: str) -> dict[str, Any]:
-            async with session.get(url) as response:
-                response.raise_for_status()
-                return await response.json(content_type=None)
+        # v1.0.1: query1.finance.yahoo.com/v7/finance/quote has required a
+        # session cookie + crumb token since mid-2024; a bare request now
+        # gets 401. YahooCrumbFetcher.fetch has the same FetchFn signature
+        # the old plain closure did, so this is a same-shape substitution -
+        # neither provider below changes.
+        yahoo_fetch = YahooCrumbFetcher(session).fetch
 
-        self.price_provider: PriceProvider = YahooFinanceProvider(fetch=_fetch)
-        self.currency_provider: CurrencyProvider = YahooFinanceCurrencyProvider(fetch=_fetch)
+        self.price_provider: PriceProvider = YahooFinanceProvider(fetch=yahoo_fetch)
+        self.currency_provider: CurrencyProvider = YahooFinanceCurrencyProvider(
+            fetch=yahoo_fetch
+        )
         self.snapshot_repository = StoreSnapshotRepository(hass, entry.entry_id)
         self.import_report_store = ImportReportStore(hass, entry.entry_id)
         self.calculators = _build_calculators()

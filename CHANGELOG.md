@@ -12,6 +12,12 @@ Entries are grouped by milestone, since that's been this project's actual releas
 
 ## [Unreleased]
 
+## 1.0.1 (2026-07-11)
+
+### Fixed
+- `[integration]` **Yahoo Finance 401 on price/FX fetch.** `query1.finance.yahoo.com/v7/finance/quote` has required a session cookie + crumb token since mid-2024; the plain unauthenticated request `coordinator.py` built now got 401 for every user, which surfaced as the config entry stuck in `setup_retry`. Fixed at the fetch-injection boundary rather than in either provider: `coordinator.py` now wires `YahooCrumbFetcher.fetch` (new: `yahoo_auth.py`) in place of the old plain closure — same `FetchFn` signature, so `YahooFinanceProvider` and `YahooFinanceCurrencyProvider` (and their existing unit tests, which fake `fetch` directly) are untouched. Handles cookie acquisition, crumb retrieval, crumb caching across calls, and one re-authenticate-and-retry on a 401 mid-session (expired crumb). Not vendored into the standalone `engine/`/`providers/` packages — HA-only, same precedent as `store_snapshot_repository.py`.
+- 4 new tests (`tests_integration/test_yahoo_auth.py`): initial auth + crumb attachment, crumb reuse across calls, one-retry-on-401 recovery, and an invalid-crumb-response error path — all against a fake session, no network or HA harness required.
+
 ### Added
 - `[process]` This changelog.
 - `[process]` `docs/ENTITY_CONTRACTS.md` — mandatory documentation template for every entity from this point forward (purpose, state meaning, unit, state class, device class, intended automation use, intended dashboard use), plus retroactive contracts for the six entities already shipped.

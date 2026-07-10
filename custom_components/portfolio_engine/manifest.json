@@ -1,7 +1,7 @@
 {
   "domain": "portfolio_engine",
   "name": "Portfolio Engine",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "documentation": "https://github.com/example/ha-portfolio-engine",
   "issue_tracker": "https://github.com/example/ha-portfolio-engine/issues",
   "requirements": ["pyyaml>=6.0"],
