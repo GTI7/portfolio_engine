@@ -1,25 +1,26 @@
-# Portfolio Engine — v1.0.0 (Milestones 1 through 10)
+# Portfolio Engine — v1.0.1
 
 [![Tests](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml/badge.svg)](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml)
 
-**v1.0.0.** See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the current
-release, active branch, priority, and known technical debt at a glance.
-Milestone 1: the HA-independent calculation core. Milestone 2:
-wiring it into Home Assistant. Milestone 2.5: real-harness validation.
-Milestone 3: currency support. Milestone 4: transaction history.
-Milestone 5: money-weighted return. Milestone 6: snapshot engine +
-time-weighted return. Milestone 7: portfolio analytics. Milestone 8: Home
-Assistant UX & production readiness. Milestone 9: a read-only broker
-import framework. Milestone 10: production polish — configuration UX
-fixes, backup/export, HA Quality Scale self-assessment, HACS readiness,
-richer dashboard cards — culminating in this v1.0.0 release. See
-`MILESTONE_10.md` and `docs/QUALITY_SCALE.md` for exactly what that does
-and doesn't mean.
+**v1.0.1** (integration) — a targeted Yahoo Finance 401 fix plus a
+test-infrastructure cleanup, not a milestone. The engine itself remains
+v1.0.0, unchanged since Milestone 10 (see ADR-0007 for why the two are
+versioned independently). See [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
+for the current release, active branch, priority, and known technical
+debt at a glance, and [`CHANGELOG.md`](CHANGELOG.md) for exactly what
+changed in v1.0.1.
 
-**The integration has since moved to v1.0.1** (a targeted Yahoo Finance
-401 fix plus a test-infrastructure cleanup, not a milestone) — see
-`CHANGELOG.md` and `PROJECT_STATUS.md` for the current version of each
-independently-versioned component.
+**Development history:** Milestone 1: the HA-independent calculation
+core. Milestone 2: wiring it into Home Assistant. Milestone 2.5:
+real-harness validation. Milestone 3: currency support. Milestone 4:
+transaction history. Milestone 5: money-weighted return. Milestone 6:
+snapshot engine + time-weighted return. Milestone 7: portfolio
+analytics. Milestone 8: Home Assistant UX & production readiness.
+Milestone 9: a read-only broker import framework. Milestone 10:
+production polish — configuration UX fixes, backup/export, HA Quality
+Scale self-assessment, HACS readiness, richer dashboard cards —
+culminating in the v1.0.0 release. See `MILESTONE_10.md` and
+`docs/QUALITY_SCALE.md` for exactly what that does and doesn't mean.
 
 **New to using (not building) this integration?** Start at
 [`docs/user/README.md`](docs/user/README.md) instead of here — this README
