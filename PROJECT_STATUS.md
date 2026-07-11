@@ -5,15 +5,17 @@
 | **Current Version** | 1.0.1 (integration) · 1.0.0 (engine, unchanged) |
 | **Status** | Stable |
 | **Development Branch** | `v1.x` |
-| **Current Priority** | Real-world validation |
+| **Current Priority** | Manual validation (Recorder/restart/live network) |
 | **Known Technical Debt** | `ConfigEntry.runtime_data` migration |
 | **Next Planned Release** | v1.0.2 |
 
-## Current priority: real-world validation
+## Current priority: manual validation (Recorder/restart/live network)
 
-This is the one thing every milestone since 8 has flagged as genuinely unfinished, not from lack of trying but from environment constraints: `MANUAL_VALIDATION_RUNBOOK.md`'s "Execution Record" section documents exactly what's been verified (the real `pytest-homeassistant-custom-component` harness — 77 tests of real HA Core code, not mocked — plus the dashboard package's structural validity against a real, separate Home Assistant instance's storage API) and what hasn't: Recorder long-term statistics rendering over real elapsed time, visual/UI screenshots with real portfolio data, a true host-level process restart, and real network conditions against Yahoo Finance's actual endpoint. None of that gap has closed since it was first documented — it needs a real, persistent Home Assistant instance with file-write access to `config/custom_components/`, which no session so far has had.
+**The automated part of this closed with v1.0.1's CI setup.** Every milestone since 8 flagged the real-HA-harness suite (`tests_ha/`, 77 tests of real HA Core code, not mocked) as validated only sporadically and by hand — genuine coverage that existed, but never running anywhere on its own. `.github/workflows/tests.yml` now runs it on every push and pull request against `main`, on `ubuntu-latest` (notably, this suite's `homeassistant` dependency assumes a POSIX event loop and never ran on Windows locally — CI is the first environment where all 77 have actually been confirmed green end-to-end, not just "should pass"). See `TESTING.md`'s "Continuous integration" section.
 
-If real-world validation is being picked up now, the concrete next steps are exactly the ones `MANUAL_VALIDATION_RUNBOOK.md`'s checklist (below the Execution Record) already lays out — install the integration on an actual instance per `docs/user/INSTALLATION.md`, and work through what's still unchecked.
+What's left is specifically what `MANUAL_VALIDATION_RUNBOOK.md`'s "Execution Record" documents as still unverified, and CI structurally cannot cover any of it: Recorder long-term statistics rendering over real elapsed time, visual/UI screenshots with real portfolio data, a true host-level process restart, and real network conditions against Yahoo Finance's actual endpoint (as opposed to the harness's mocked responses). None of that gap has closed since it was first documented — it needs a real, persistent Home Assistant instance with file-write access to `config/custom_components/`, which no session so far has had.
+
+If this is being picked up now, the concrete next steps are exactly the ones `MANUAL_VALIDATION_RUNBOOK.md`'s checklist (below the Execution Record) already lays out — install the integration on an actual instance per `docs/user/INSTALLATION.md`, and work through what's still unchecked.
 
 ## Known technical debt: `ConfigEntry.runtime_data`
 
