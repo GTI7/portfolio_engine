@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # Covers requirements.txt, requirements-test.txt, and requirements-ha-test.txt -
+  # Dependabot's pip ecosystem scans the given directory for all of them.
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      pip-dependencies:
+        patterns:
+          - "*"
+
+  # actions/checkout, actions/setup-python, etc. in .github/workflows/tests.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
