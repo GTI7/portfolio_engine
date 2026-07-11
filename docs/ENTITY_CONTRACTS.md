@@ -193,3 +193,39 @@ Copy this for every new entity:
 - **Intended dashboard use:** A KPI tile plus a detail view built from `largest_winner`/`largest_loser`/top-5 breakdown in attributes.
 - **Attributes:** `status` (`"ok"` | `"no_data"`), `largest_position` (`{symbol, pct_of_portfolio, gain_pct}`), `largest_winner`, `largest_loser` (same shape, by `gain_pct`), `top5_concentration_pct`, `diversification_score` (0–100, higher is more diversified), `herfindahl_index` (the standard 0–1 concentration index the diversification score is derived from — both are exposed since they read in opposite "bigger is better" directions for different audiences, see `PositionAnalyticsCalculator`'s docstring), `holding_count`.
 - **Stability notes:** `top5_concentration_pct` is always "top 5 or all holdings, whichever is fewer" — with fewer than 5 positions it equals 100%. `diversification_score`'s exact formula (`(1 - HHI) * 100`) is implementation detail; only its 0–100, higher-is-better direction is part of the contract.
+
+### `sensor.<portfolio>_last_import`
+
+- **Purpose:** Answers "how did my last broker import go, and when did it happen" — added in Milestone 9 alongside `portfolio_engine.import_transactions`. (This entry was missing from this document until Milestone 13 Phase 2's design review caught the gap — the entity itself has been unchanged since Milestone 9; this is a documentation-only correction, not a new or modified entity.)
+- **State meaning:** The last import's imported-transaction count (an integer). `None` (`"unknown"`) whenever no import has ever been run for this portfolio.
+- **Unit of measurement:** `transactions` (a count unit, same convention as `portfolio_transaction_count`).
+- **State class:** `measurement`.
+- **Device class:** None.
+- **Intended automation use:** State-change trigger for "notify me after a broker import runs," or a `numeric_state` check on `rejected`/`duplicates` (in attributes) to flag an import that needs review.
+- **Intended dashboard use:** A status tile on an Administration/Import view, expanded with the attributes below for the full report summary.
+- **Attributes:** When no import has ever run: `{"status": "never_imported"}`. Otherwise: `status` (`"ok"`), `provider`, `as_of` (ISO 8601 string), `transactions_read`, `imported`, `duplicates`, `rejected`, `warnings` (list of strings).
+- **Stability notes:** Persisted via `ImportReportStore` (Home Assistant `Store`, keyed by config entry), so the state survives restarts. Milestone 12's `portfolio_engine.apply_import` service clears the underlying stored report once its rows are written to `transactions.yaml` — this entity reverting to `None`/`"unknown"` after a successful `apply_import` call is expected behavior (there is no longer a *pending* report), not a bug; run `import_transactions` again to populate it for the next review cycle.
+
+### `sensor.<portfolio>_day_change`
+
+- **Purpose:** Answers "how has my portfolio moved today" — added in Milestone 13 Phase 2, exposing a calculation (`PerformanceCalculator`) that has existed since Milestone 1 but was never surfaced as an entity until now.
+- **State meaning:** Each position's own day-over-day change percentage (from its `Quote.change_pct`), weighted by that position's share of total portfolio value (positions + cash); cash itself contributes a 0% change, diluting the total proportionally to how much of the portfolio is uninvested — matching how an investor would actually experience "how much did I move today" (idle cash doesn't move with the market). Always a concrete number, never `None`/`"unknown"` — `0.0` for a portfolio with no positions, since there's nothing to move.
+- **Unit of measurement:** `%`.
+- **State class:** `measurement`.
+- **Device class:** None.
+- **Intended automation use:** "Notify me if today's change exceeds/drops below X%" — a same-day volatility alert, distinct from `portfolio_drawdown` (which tracks distance from an all-time peak, not day-over-day movement).
+- **Intended dashboard use:** A KPI tile alongside `portfolio_value` on an Overview-style view — "what is it worth" paired with "how did it move today."
+- **Attributes:** None. `PerformanceResult` (the underlying calculator output) also defines `weekly_change_pct`/`monthly_change_pct`/`ytd_change_pct`, but these are hardcoded `0.0` stubs in the engine today (see `engine/models.py`'s `PerformanceResult` docstring — pending a real history-based calculation in a future milestone) and are deliberately *not* exposed here: surfacing a constant `0.0` as if it were a real weekly/monthly/YTD figure would mislead a dashboard reader into thinking that data is being tracked when it isn't.
+- **Stability notes:** When a future milestone implements real weekly/monthly/YTD calculations, those become **new attributes on this entity** (additive, per `ENTITY_API_POLICY.md`'s preference for additive changes) — not a redefinition of what `day_change_pct`'s own state means, since it will remain "today's change" specifically.
+
+### `sensor.<portfolio>_allocation`
+
+- **Purpose:** Answers "how is my portfolio allocated across asset types" — added in Milestone 13 Phase 2, exposing a calculation (`AllocationCalculator`, `group_by="type"`) that has existed since Milestone 3 but was never surfaced as an entity until now.
+- **State meaning:** The largest allocation group's share of total portfolio value (positions + cash), as a percentage. Groups are formed by each holding's `type` field (e.g. `stock`, `etf`, `mutual_fund`, `crypto`) plus a synthetic `Cash` group whenever `cash_balance > 0` (per `docs/adr/0008-cash-as-first-class-domain-concept.md` — cash counts toward the 100% total like any other group, rather than being silently excluded from the denominator). `None` (`"unknown"`) when there are no groups at all (no holdings and no cash).
+- **Unit of measurement:** `%`.
+- **State class:** `measurement`.
+- **Device class:** None.
+- **Intended automation use:** "Notify me if my allocation to one asset type exceeds X%" — an asset-allocation-drift alert, distinct from `portfolio_concentration` (which tracks concentration in a single *position*, not an asset *type*).
+- **Intended dashboard use:** A KPI tile showing the largest group's share, paired with the `allocation` attribute for a full breakdown table or pie chart across every group.
+- **Attributes:** `allocation` (list of `{label, value, pct}` dicts — `label` is the group name, e.g. `"stock"`/`"Cash"`; `value` is that group's total in base currency; `pct` is its share of the portfolio total — already sorted largest-first by the calculator itself), `largest_group` (the top group's `label`, for convenience — `None` if there are no groups), `group_count`.
+- **Stability notes:** This entity always groups by `type` — `AllocationCalculator` itself supports grouping by an arbitrary `Holding` field (e.g. a future `currency`-based breakdown), but a different grouping would be a **new entity**, not a redefinition of this one's meaning, per `ENTITY_API_POLICY.md` rule 3. The per-group dict shape inside the `allocation` attribute is allowed to grow additively (e.g. a future `holding_count` per group), matching the same carve-out `sensor.<portfolio>_positions`'s `positions` attribute already has.

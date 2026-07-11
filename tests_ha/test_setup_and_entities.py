@@ -19,6 +19,12 @@ EXPECTED_ENTITIES = {
     "sensor.demo_portfolio_roi": ("50.0", "%"),
     "sensor.demo_portfolio_cash_balance": ("1000.0", "USD"),
     "sensor.demo_portfolio_positions": ("1", "positions"),
+    # Milestone 13 Phase 2: mock_price_provider's fake quote uses
+    # change_pct=1.5 for every symbol - weighted by position value
+    # (1500/2500 of the total) that's 1.5 * 0.6 = 0.9. Allocation: 1500
+    # stock (60%) + 1000 cash (40%) - stock is the largest group.
+    "sensor.demo_portfolio_day_change": ("0.9", "%"),
+    "sensor.demo_portfolio_allocation": ("60.0", "%"),
 }
 
 
@@ -37,7 +43,7 @@ async def _setup_entry(hass: HomeAssistant, investments_dir) -> MockConfigEntry:
     return entry
 
 
-async def test_setup_creates_all_six_entities_with_correct_values(
+async def test_setup_creates_entities_with_correct_values(
     hass: HomeAssistant, enable_custom_integrations: None, investments_dir, mock_price_provider
 ) -> None:
     entry = await _setup_entry(hass, investments_dir)
@@ -83,12 +89,27 @@ async def test_entities_share_one_device_per_portfolio(
         assert entity_entry.device_id is not None
         device_ids.add(entity_entry.device_id)
 
-    assert len(device_ids) == 1, "all six entities should share exactly one device"
+    assert len(device_ids) == 1, "all entities should share exactly one device"
 
     device = device_registry.async_get(next(iter(device_ids)))
     assert device is not None
     assert device.name == "Demo Portfolio"
     assert (DOMAIN, "demo_portfolio") in device.identifiers
+
+    await hass.config_entries.async_unload(entry.entry_id)
+    await hass.async_block_till_done()
+
+
+async def test_allocation_entity_carries_full_breakdown_as_attributes(
+    hass: HomeAssistant, enable_custom_integrations: None, investments_dir, mock_price_provider
+) -> None:
+    entry = await _setup_entry(hass, investments_dir)
+
+    state = hass.states.get("sensor.demo_portfolio_allocation")
+    assert state.state == "60.0"
+    assert state.attributes["largest_group"] == "stock"
+    assert state.attributes["group_count"] == 2
+    assert [g["label"] for g in state.attributes["allocation"]] == ["stock", "Cash"]
 
     await hass.config_entries.async_unload(entry.entry_id)
     await hass.async_block_till_done()

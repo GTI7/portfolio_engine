@@ -1,7 +1,8 @@
 """Sensor platform for Portfolio Engine.
 
-Fourteen entities through Milestone 8, plus one added in Milestone 9
-(last import summary) — fifteen total. This is the integration's public
+Fourteen entities through Milestone 8, one added in Milestone 9 (last
+import summary), and two added in Milestone 13 Phase 2 (day change,
+allocation-by-type) — seventeen total. This is the integration's public
 API from this point forward. Do not add more entities without a
 docs/ENTITY_CONTRACTS.md entry, per the policy established at the end of
 Milestone 2.5.
@@ -73,6 +74,8 @@ async def async_setup_entry(
             PortfolioVolatilitySensor(coordinator, entry),
             PortfolioConcentrationSensor(coordinator, entry),
             PortfolioLastImportSensor(coordinator, entry),
+            PortfolioDayChangeSensor(coordinator, entry),
+            PortfolioAllocationSensor(coordinator, entry),
         ]
     )
 
@@ -456,3 +459,60 @@ class PortfolioLastImportSensor(_PortfolioEntityBase):
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         return sensor_mapping.get_last_import_attributes(self.coordinator.data)
+
+
+class PortfolioDayChangeSensor(_PortfolioEntityBase):
+    """Milestone 13 Phase 2. PerformanceCalculator (registered in
+    coordinator.py, runs every refresh) has computed this since Milestone
+    1 - this is the first entity to expose it. Always a concrete float
+    (0.0 for an empty portfolio); unlike MwrResult/TwrResult, PerformanceResult
+    has no status field, since a day-over-day change is always computable.
+    Weekly/monthly/YTD change remain stubbed at 0.0 in the engine itself
+    (PerformanceResult's own docstring - pending a real history-based
+    calculation) and are deliberately NOT exposed here as attributes:
+    surfacing a hardcoded 0.0 as if it were a real weekly/monthly/YTD
+    figure would be misleading, not additive.
+    """
+
+    _attr_translation_key = "portfolio_day_change"
+    _attr_icon = "mdi:calendar-today"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: PortfolioCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_portfolio_day_change"
+
+    @property
+    def native_value(self) -> float:
+        return sensor_mapping.get_day_change(self.coordinator.data)
+
+
+class PortfolioAllocationSensor(_PortfolioEntityBase):
+    """Milestone 13 Phase 2. AllocationCalculator (registered in
+    coordinator.py, group_by="type", runs every refresh) has computed a
+    by-type breakdown (stock/etf/mutual_fund/crypto, plus a synthetic
+    "Cash" group per ADR-0008 whenever cash_balance > 0) since Milestone 3
+    - this is the first entity to expose it. State is the largest group's
+    share of total portfolio value, the same "headline figure in state,
+    full breakdown in attributes" pattern PortfolioConcentrationSensor
+    already uses; the full per-type breakdown lives in the `allocation`
+    attribute, already sorted largest-first by the calculator itself.
+    """
+
+    _attr_translation_key = "portfolio_allocation"
+    _attr_icon = "mdi:chart-donut"
+    _attr_native_unit_of_measurement = "%"
+    _attr_state_class = SensorStateClass.MEASUREMENT
+
+    def __init__(self, coordinator: PortfolioCoordinator, entry: ConfigEntry) -> None:
+        super().__init__(coordinator, entry)
+        self._attr_unique_id = f"{entry.entry_id}_portfolio_allocation"
+
+    @property
+    def native_value(self) -> float | None:
+        return sensor_mapping.get_allocation(self.coordinator.data)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        return sensor_mapping.get_allocation_attributes(self.coordinator.data)

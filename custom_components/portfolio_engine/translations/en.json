@@ -51,7 +51,9 @@
       "portfolio_drawdown": { "name": "Drawdown" },
       "portfolio_volatility": { "name": "Volatility" },
       "portfolio_concentration": { "name": "Concentration" },
-      "portfolio_last_import": { "name": "Last Import" }
+      "portfolio_last_import": { "name": "Last Import" },
+      "portfolio_day_change": { "name": "Day Change" },
+      "portfolio_allocation": { "name": "Allocation" }
     }
   },
   "services": {

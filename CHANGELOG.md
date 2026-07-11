@@ -12,6 +12,26 @@ Entries are grouped by milestone, since that's been this project's actual releas
 
 ## [Unreleased]
 
+### Milestone 13: Dashboard & User Experience (in progress — manifest version intentionally not yet bumped)
+
+Implementation complete and locally verified; **the integration version stays at `1.2.0`** until this milestone is fully manually validated against a real Home Assistant instance (see `docs/testing/MILESTONE_13_MANUAL_VALIDATION.md`) and ready for release — this section will be converted to a proper `integration 1.2.0 → 1.3.0` versioned entry at that point, not before.
+
+#### Added
+- `[integration]` Official dashboard package (`dashboards/portfolio_engine_dashboard.yaml`) reworked to native Home Assistant cards wherever the platform permits (`entities`, `gauge`, `history-graph`, `statistics-graph`) — markdown reserved only for the Holdings/Transactions tables (no native card renders a table from a list-valued attribute), a couple of nested-attribute summaries, and genuinely conditional/static text. Every entity ID is defined exactly once via a YAML anchor in the Overview view; every other native card references it by alias. Reorganized from 7 views into 6 (Overview, Holdings, Performance, Transactions, Analytics, Administration — merging the old Health + Import/Backup views). See ADR-0019 and `MILESTONE_13_DESIGN.md` for the full native-cards-vs-zero-config tradeoff analysis.
+- `[integration]` `sensor.<portfolio>_day_change` — exposes `PerformanceCalculator`'s day-over-day change (`day_change_pct`), computed every refresh since Milestone 1 but never surfaced as an entity until now. Weighted by each position's share of total portfolio value; cash contributes 0% change. Always a concrete number, never `unknown`. Weekly/monthly/YTD change remain hardcoded `0.0` stubs in the engine itself and are deliberately not exposed as attributes here, since surfacing them would misrepresent unimplemented data as real.
+- `[integration]` `sensor.<portfolio>_allocation` — exposes `AllocationCalculator`'s by-type breakdown (`group_by="type"`, computed every refresh since Milestone 3 but never surfaced until now), including the synthetic `Cash` group (ADR-0008). State is the largest group's share of total portfolio value; the full breakdown (every group's label/value/pct, already sorted largest-first) lives in the `allocation` attribute. Both new entities added minimally to the dashboard (one native row each) — no reorganization beyond that.
+- ADR-0019 (dashboard stays plain Lovelace YAML; zero-config achieved via a small one-time anchor edit, not a custom frontend strategy), `MILESTONE_13_DESIGN.md`.
+- Both new entities documented in `docs/ENTITY_CONTRACTS.md`, per `ENTITY_API_POLICY.md`'s "an entity isn't shipped without a contract entry" rule.
+
+#### Fixed
+- `[integration]` **`portfolio_engine.apply_import` and `portfolio_engine.create_portfolio` (both added in Milestone 12) were never deregistered when the last config entry unloads.** `tests_ha/test_apply_import_ha.py`/`test_create_portfolio_ha.py` already had tests asserting the correct deregistration behavior, written alongside each service — they simply couldn't run locally on this Windows dev environment (the known `tests_ha/` `ProactorEventLoop` limitation), so the gap went unnoticed locally until this review. Fixed in `__init__.py`'s `async_unload_entry` unload-cleanup block; no behavior change beyond the correctness fix itself.
+- `[process]` `docs/ENTITY_CONTRACTS.md` was missing an entry for `sensor.<portfolio>_last_import` (added Milestone 9) — a pre-existing documentation gap against the project's own governance rule, unrelated to any code change, caught during this milestone's design review and corrected here.
+
+#### Documentation
+- `docs/user/DASHBOARDS.md` rewritten for the native-cards rework: the anchor-based configuration block, a worked before/after example, and the two new entities' minimal placements.
+- `docs/testing/MILESTONE_13_MANUAL_VALIDATION.md` — the release-acceptance checklist gating this milestone's eventual version bump.
+- 6 new tests: 5 pure-logic (`tests_integration/test_sensor_mapping.py` — day-change weighting, allocation grouping/sorting, empty-portfolio edge case), 1 real-HA-harness (`tests_ha/test_setup_and_entities.py` — allocation entity's full attribute shape; both new entities' state/unit also folded into that file's existing `EXPECTED_ENTITIES` table, extending its unique-id-stability and shared-device coverage to them for free) — 484 tests total (up from 478 at the previous release): 332 engine, 50 pure-logic integration, 102 real-HA-harness. (No automated coverage exists or is expected for the dashboard YAML itself — verified by a throwaway Jinja dry-run render against mocked two-portfolio data during development; real HA validation is still required before this ships, per the manual validation checklist above.)
+
 ## integration 1.1.0 → 1.2.0 / engine unchanged (1.0.0) — Milestone 12: Portfolio Import & Assisted Setup (2026-07-11)
 
 ### Added

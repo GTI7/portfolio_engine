@@ -34,8 +34,8 @@ Your `holdings.yaml`/`transactions.yaml` files are untouched — they're just fi
 **Is my data sent anywhere?**
 Only symbol lookups (to fetch quotes) and currency pairs (to fetch exchange rates) go out, to Yahoo Finance's public endpoints — no holdings amounts, transaction history, or portfolio values are ever transmitted anywhere. Diagnostics downloads stay local to your Home Assistant instance unless you choose to share the file yourself.
 
-**Why does the dashboard package need me to find-and-replace an entity prefix?**
-Every entity ID includes your portfolio's own folder name (e.g. `sensor.my_portfolio_value`), which is different for everyone — there's no way to ship a dashboard with the "right" prefix pre-filled for every possible user. See [Dashboards](DASHBOARDS.md) for the exact steps.
+**Do I need to find-and-replace an entity prefix before importing the dashboard?**
+Yes, once — the package uses real native Home Assistant cards (entities, gauge, history/statistics graphs) rather than simulating them in markdown, and native cards need to know which entity to bind to at config time; Home Assistant has no way to template that. Every entity ID is defined exactly once, in the Overview view, as a YAML anchor — a single find-and-replace of the placeholder portfolio name across the file updates it and every card that references it. See [Dashboards](DASHBOARDS.md) for the exact steps and a worked example.
 
 **Something's not covered here — where do I ask?**
 Check [Troubleshooting](TROUBLESHOOTING.md) first, then open an issue in this repository with your Download Diagnostics output attached (see Troubleshooting's last section) — it gives maintainers everything needed to help without you having to describe your whole setup by hand.

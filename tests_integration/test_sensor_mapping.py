@@ -414,3 +414,58 @@ def test_get_last_import_when_a_report_exists():
     assert attrs["status"] == "ok"
     assert attrs["provider"] == "generic_csv"
     assert attrs["transactions_read"] == 5
+
+
+# --- Milestone 13 Phase 2: day change / allocation-by-type mapping functions --
+
+def test_get_day_change_weighted_by_position_value():
+    data = build_sample_data()
+    # sample portfolio: 10 shares AAPL @ 150 (change_pct=2.0) = 1500 positions
+    # value + 1000 cash (0% change) = 2500 total. Weighted: 2.0 * (1500/2500) = 1.2
+    assert sensor_mapping.get_day_change(data) == 1.2
+
+
+def test_get_day_change_is_never_none():
+    # PerformanceResult has no status field - always a concrete float, even
+    # for a transaction-less/snapshot-less portfolio (unlike MWR/TWR/etc).
+    data = build_sample_data(transactions=[], snapshots=[])
+    assert sensor_mapping.get_day_change(data) is not None
+    assert isinstance(sensor_mapping.get_day_change(data), float)
+
+
+def test_get_allocation_largest_group_is_state():
+    data = build_sample_data()
+    # sample portfolio: 1500 stock (AAPL) + 1000 cash = 2500 total.
+    # stock = 60%, Cash = 40% - stock is the largest group.
+    assert sensor_mapping.get_allocation(data) == 60.0
+
+
+def test_get_allocation_attributes_shape_and_sorting():
+    data = build_sample_data()
+    attrs = sensor_mapping.get_allocation_attributes(data)
+
+    assert attrs["largest_group"] == "stock"
+    assert attrs["group_count"] == 2
+    assert [g["label"] for g in attrs["allocation"]] == ["stock", "Cash"]  # largest-first
+    assert attrs["allocation"][0] == {"label": "stock", "value": 1500.0, "pct": 60.0}
+    assert attrs["allocation"][1] == {"label": "Cash", "value": 1000.0, "pct": 40.0}
+
+
+def test_get_allocation_none_when_no_holdings_and_no_cash():
+    # Directly assert the no-groups case using AllocationCalculator's own
+    # documented behavior for an empty portfolio (no holdings, no cash) -
+    # simpler than routing an empty portfolio through the full engine.
+    from custom_components.portfolio_engine.engine.calculators.allocation_calculator import (
+        AllocationCalculator,
+    )
+    from custom_components.portfolio_engine.engine.models import Portfolio
+
+    data = build_sample_data()
+    empty_portfolio = Portfolio(id="empty", name="Empty", cash_balance=0.0, holdings=[])
+    data["allocation"] = AllocationCalculator(group_by="type").calculate(empty_portfolio, [])
+
+    assert sensor_mapping.get_allocation(data) is None
+    attrs = sensor_mapping.get_allocation_attributes(data)
+    assert attrs["largest_group"] is None
+    assert attrs["group_count"] == 0
+    assert attrs["allocation"] == []

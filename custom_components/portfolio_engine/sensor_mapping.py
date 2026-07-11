@@ -192,6 +192,39 @@ def get_concentration_attributes(data: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def get_day_change(data: dict[str, Any]) -> float:
+    """Milestone 13 Phase 2 - PerformanceCalculator (data["performance"])
+    already computes this every refresh; this is the first entity to read
+    it. Always a concrete float, never None - PerformanceResult has no
+    status field the way MwrResult/TwrResult do, since a day-over-day
+    change is always computable (0.0 for an empty portfolio, per
+    PerformanceCalculator's own zero-total-value branch).
+    """
+    return float(data["performance"].day_change_pct)
+
+
+def get_allocation(data: dict[str, Any]) -> float | None:
+    """Milestone 13 Phase 2 - AllocationCalculator (data["allocation"])
+    already computes this every refresh, grouped by type (stock/etf/
+    mutual_fund/crypto/Cash) and sorted largest-first; this is the first
+    entity to read it. State is the largest group's share of total
+    portfolio value - the same "headline figure in state, full breakdown
+    in attributes" pattern get_concentration already uses. None
+    ("unknown") when there are no groups at all (no holdings, no cash).
+    """
+    allocation = data["allocation"]
+    return allocation[0].pct if allocation else None
+
+
+def get_allocation_attributes(data: dict[str, Any]) -> dict[str, Any]:
+    allocation = data["allocation"]
+    return {
+        "allocation": [asdict(g) for g in allocation],
+        "largest_group": allocation[0].label if allocation else None,
+        "group_count": len(allocation),
+    }
+
+
 def get_last_import(data: dict[str, Any]) -> int | None:
     """Milestone 9. State is the last import's imported count - None
     (HA "unknown") when no import has ever run for this portfolio, same
