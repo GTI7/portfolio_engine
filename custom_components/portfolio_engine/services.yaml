@@ -62,3 +62,28 @@ export_portfolio_data:
       example: backups/demo_portfolio_backup.json
       selector:
         text:
+
+search_assets:
+  name: Search assets
+  description: >-
+    Search Yahoo Finance by company/fund name or partial ticker and return
+    candidate matches (ticker, display name, exchange, currency, asset
+    type). Pure discovery - never reads or writes any portfolio file.
+  fields:
+    query:
+      name: Query
+      description: Free-text search - a company/fund name or partial ticker.
+      required: true
+      example: Vanguard FTSE All-World
+      selector:
+        text:
+    limit:
+      name: Limit
+      description: Maximum number of matches to return (1-25).
+      required: false
+      example: 10
+      selector:
+        number:
+          min: 1
+          max: 25
+          mode: box

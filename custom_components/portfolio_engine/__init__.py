@@ -1,10 +1,11 @@
 """Portfolio Engine integration setup.
 
 Milestone 2 scope: single config entry -> single coordinator -> sensor
-platform. Milestone 9 adds one service, `portfolio_engine.import_transactions`
-(see services.py) - registered once (shared across every config entry,
-since it's a domain-level service, not per-entry) and deregistered when
-the last entry unloads.
+platform. Milestone 9 adds `portfolio_engine.import_transactions`,
+Milestone 10 adds `portfolio_engine.export_portfolio_data`, Milestone 11
+adds `portfolio_engine.search_assets` (see services.py) - all three are
+domain-level services (shared across every config entry, not per-entry),
+registered once and deregistered when the last entry unloads.
 """
 from __future__ import annotations
 
@@ -19,6 +20,7 @@ from .coordinator import REPAIR_ISSUE_KEYS, PortfolioCoordinator
 from .services import (
     SERVICE_EXPORT_PORTFOLIO_DATA,
     SERVICE_IMPORT_TRANSACTIONS,
+    SERVICE_SEARCH_ASSETS,
     async_register_services,
 )
 
@@ -55,11 +57,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         # the Repairs UI for a portfolio that no longer exists.
         for key in REPAIR_ISSUE_KEYS:
             ir.async_delete_issue(hass, DOMAIN, f"{entry.entry_id}_{key}")
-        # Milestone 9/10: both services are domain-level, not per-entry -
-        # only remove them once no configured portfolio remains to use them.
+        # Milestone 9/10/11: all three services are domain-level, not
+        # per-entry - only remove them once no configured portfolio remains
+        # to use them.
         if not hass.data[DOMAIN]:
             hass.services.async_remove(DOMAIN, SERVICE_IMPORT_TRANSACTIONS)
             hass.services.async_remove(DOMAIN, SERVICE_EXPORT_PORTFOLIO_DATA)
+            hass.services.async_remove(DOMAIN, SERVICE_SEARCH_ASSETS)
     return unload_ok
 
 

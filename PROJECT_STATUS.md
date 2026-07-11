@@ -2,12 +2,12 @@
 
 | | |
 |---|---|
-| **Current Version** | 1.0.1 (integration) · 1.0.0 (engine, unchanged) |
+| **Current Version** | 1.1.0 (integration) · 1.0.0 (engine, unchanged) |
 | **Status** | Stable |
 | **Development Branch** | `v1.x` |
 | **Current Priority** | Manual validation (Recorder/restart/live network) |
 | **Known Technical Debt** | `ConfigEntry.runtime_data` migration |
-| **Next Planned Release** | v1.0.2 |
+| **Next Planned Release** | Not yet decided — `ConfigEntry.runtime_data` migration remains the leading candidate |
 
 ## Current priority: manual validation (Recorder/restart/live network)
 
@@ -21,12 +21,12 @@ If this is being picked up now, the concrete next steps are exactly the ones `MA
 
 `docs/QUALITY_SCALE.md` has the full self-assessment; this is the one item from it called out here as the actual next-release-relevant debt. Coordinator storage currently uses `hass.data[DOMAIN][entry.entry_id]` (the Milestone 2 pattern) rather than the newer `ConfigEntry.runtime_data` typed-storage convention HA has moved toward. Functionally equivalent today, but migrating touches every file that reads that lookup: `__init__.py`, `services.py` (`_find_coordinator_for_portfolio`), `diagnostics.py`, and `sensor.py`. Not started — Milestone 10 identified it and left it open rather than rushing an invasive, cross-cutting change late in that session without full test coverage behind it.
 
-**Not started in v1.0.1 either** — that release was a targeted patch (Yahoo Finance 401 fix, plus a test-infrastructure cleanup), deliberately scoped away from this. If v1.0.2 is meant to close this out, that's real, scoped work — the four touch points above, each needing its existing test coverage to keep passing unmodified plus new coverage for whatever `runtime_data` typing adds — worth doing as its own deliberate pass rather than folded into a status update. Happy to start on it directly if that's the intent; flagging it as a distinct next step rather than assuming.
+**Not started in v1.0.1 or v1.1.0 either** — v1.0.1 was a targeted patch (Yahoo Finance 401 fix, plus a test-infrastructure cleanup), and v1.1.0 (Milestone 11, Asset Discovery) was scoped entirely to a new, additive provider + service, deliberately away from this. That's real, scoped work — the four touch points above, each needing its existing test coverage to keep passing unmodified plus new coverage for whatever `runtime_data` typing adds — worth doing as its own deliberate pass rather than folded into a status update. Happy to start on it directly if that's the intent; flagging it as a distinct next step rather than assuming.
 
 ## Where the rest of the project stands
 
-- **Engine**: v1.0.0, stable API declaration (no calculation code changed across Milestones 8–10, nor by v1.0.1) — see `engine/__init__.py`'s own docstring.
-- **Integration**: v1.0.1, `custom_components/portfolio_engine/` — see `CHANGELOG.md` for the v1.0.1 Yahoo Finance 401 fix.
-- **Tests**: 426 total (307 engine, 42 pure-logic integration, 77 real-HA-harness) — `TESTING.md`.
-- **Documentation**: contributor-facing docs at the repository root and `docs/`; end-user docs at `docs/user/`; `docs/QUALITY_SCALE.md` for the honest HA Quality Scale self-assessment; `docs/RELEASE_CHECKLIST.md` for what a real GitHub repository still needs before actual HACS publication.
-- **Milestone history**: `MILESTONE_1.md` through `MILESTONE_10.md`, each an honest account of what shipped, what was found and fixed along the way, and what was deliberately deferred.
+- **Engine**: v1.0.0, stable API declaration (no calculation code changed across Milestones 8–10, nor by v1.0.1, nor by v1.1.0's new `providers/asset_search_base.py`/`yahoo_finance_asset_search.py`, which are consumed only via an HA service — see `MILESTONE_11_DESIGN.md`) — see `engine/__init__.py`'s own docstring.
+- **Integration**: v1.1.0, `custom_components/portfolio_engine/` — see `CHANGELOG.md` for the v1.1.0 Asset Discovery milestone (`portfolio_engine.search_assets` service) and the earlier v1.0.1 Yahoo Finance 401 fix.
+- **Tests**: 449 total (321 engine, 45 pure-logic integration, 83 real-HA-harness) — `TESTING.md`.
+- **Documentation**: contributor-facing docs at the repository root and `docs/`; end-user docs at `docs/user/` (including the new `ASSET_DISCOVERY.md`); `docs/QUALITY_SCALE.md` for the honest HA Quality Scale self-assessment; `docs/RELEASE_CHECKLIST.md` for what a real GitHub repository still needs before actual HACS publication.
+- **Milestone history**: `MILESTONE_1.md` through `MILESTONE_10.md`, plus `MILESTONE_11_DESIGN.md` (Asset Discovery), each an honest account of what shipped, what was found and fixed along the way, and what was deliberately deferred.

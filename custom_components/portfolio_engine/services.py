@@ -1,5 +1,5 @@
-"""portfolio_engine.import_transactions and portfolio_engine.export_portfolio_data
-services.
+"""portfolio_engine.import_transactions, portfolio_engine.export_portfolio_data,
+and portfolio_engine.search_assets services.
 
 import_transactions reads a broker export file, runs it through the
 requested BrokerImportProvider, builds an ImportReport (duplicate-checked
@@ -19,19 +19,30 @@ an *explicit* write, to a *new* file of the user's own choosing - not an
 automatic modification of transactions.yaml or any file this integration
 already owns, so it doesn't conflict with the "no automatic writes"
 principle the import service is built around.
+
+search_assets (Milestone 11) is domain-wide, not portfolio-scoped - unlike
+the two services above, it has nothing to do with any configured
+portfolio's data, so it does NOT use _find_coordinator_for_portfolio. It
+never reads or writes any portfolio file at all - see
+providers/asset_search_base.py and docs/adr/0014 for the two-call Yahoo
+search+enrich design this delegates to.
 """
+
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import aiohttp
 import voluptuous as vol
 from homeassistant.core import HomeAssistant, ServiceCall, ServiceResponse, SupportsResponse
 from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import DOMAIN
 from .coordinator import PortfolioCoordinator
@@ -39,11 +50,15 @@ from .importers.base import BrokerImportProvider
 from .importers.generic_csv_importer import GenericCsvImporter
 from .importers.ibkr_flex_query_importer import IbkrFlexQueryImporter
 from .importers.report import build_import_report
+from .providers.asset_search_base import AssetSearchResult
+from .providers.yahoo_finance_asset_search import YahooFinanceAssetSearchProvider
+from .yahoo_auth import YahooCrumbFetcher
 
 _LOGGER = logging.getLogger(__name__)
 
 SERVICE_IMPORT_TRANSACTIONS = "import_transactions"
 SERVICE_EXPORT_PORTFOLIO_DATA = "export_portfolio_data"
+SERVICE_SEARCH_ASSETS = "search_assets"
 
 #: The two importers this milestone ships, per MILESTONE_9's explicit
 #: "start with only two importers" scope - adding a third later is a
@@ -66,6 +81,13 @@ EXPORT_SERVICE_SCHEMA = vol.Schema(
     {
         vol.Required("portfolio"): cv.string,
         vol.Required("output_path"): cv.string,
+    }
+)
+
+SEARCH_ASSETS_SCHEMA = vol.Schema(
+    {
+        vol.Required("query"): cv.string,
+        vol.Optional("limit", default=10): vol.All(int, vol.Range(min=1, max=25)),
     }
 )
 
@@ -94,6 +116,19 @@ def async_register_services(hass: HomeAssistant) -> None:
             SERVICE_EXPORT_PORTFOLIO_DATA,
             _handle_export_portfolio_data,
             schema=EXPORT_SERVICE_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_SEARCH_ASSETS):
+
+        async def _handle_search_assets(call: ServiceCall) -> ServiceResponse:
+            return await _async_search_assets(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_SEARCH_ASSETS,
+            _handle_search_assets,
+            schema=SEARCH_ASSETS_SCHEMA,
             supports_response=SupportsResponse.OPTIONAL,
         )
 
@@ -273,4 +308,45 @@ def _transaction_to_dict(txn: Any) -> dict[str, Any]:
         "shares": txn.shares,
         "price": txn.price,
         "notes": txn.notes,
+    }
+
+
+async def _plain_json_fetch(session: aiohttp.ClientSession, url: str) -> dict[str, Any]:
+    """Unauthenticated GET+JSON, for the search endpoint only. Per ADR-0014,
+    Yahoo's public search endpoint (unlike the quote endpoint) needs no
+    crumb - verified against the live API before this was written - so this
+    deliberately does not go through YahooCrumbFetcher.
+    """
+    async with session.get(url) as response:
+        response.raise_for_status()
+        return await response.json(content_type=None)
+
+
+def _asset_search_result_to_dict(result: AssetSearchResult) -> dict[str, Any]:
+    return {
+        "symbol": result.symbol,
+        "name": result.name,
+        "exchange": result.exchange,
+        "currency": result.currency,
+        "asset_type": result.asset_type,
+    }
+
+
+async def _async_search_assets(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
+    query = call.data["query"]
+    limit = call.data["limit"]
+
+    session = async_get_clientsession(hass)
+    search_fetch = functools.partial(_plain_json_fetch, session)
+    quote_fetch = YahooCrumbFetcher(session).fetch
+    provider = YahooFinanceAssetSearchProvider(search_fetch=search_fetch, quote_fetch=quote_fetch)
+
+    results = await provider.async_search(query, limit=limit)
+
+    _LOGGER.info("Portfolio Engine asset search for %r: %d match(es)", query, len(results))
+
+    return {
+        "query": query,
+        "count": len(results),
+        "results": [_asset_search_result_to_dict(r) for r in results],
     }

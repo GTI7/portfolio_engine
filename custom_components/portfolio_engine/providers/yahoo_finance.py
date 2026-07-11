@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from ..engine.models import Quote
+
 from .price_base import PriceProvider
 
 # A fetch function's signature: given a URL, return parsed JSON.

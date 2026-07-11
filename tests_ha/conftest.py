@@ -11,6 +11,7 @@ plain `pip install -r requirements-test.txt` flow used for tests/ and
 tests_integration/, intentionally: this is a much heavier dependency than
 the rest of the project needs.
 """
+
 from pathlib import Path
 from unittest.mock import patch
 
@@ -80,6 +81,43 @@ def mock_currency_provider():
         new=_fake_get_rates,
     ):
         yield
+
+
+@pytest.fixture
+def mock_asset_search_provider():
+    """Patch YahooFinanceAssetSearchProvider.async_search (Milestone 11) so
+    tests exercising the search_assets service get deterministic results
+    instead of a real network call - same pattern as mock_price_provider.
+
+    Yields the list of (query, limit) calls received, so a test can assert
+    on what the service handler actually passed through (e.g. the default
+    limit) without depending on real Yahoo data.
+    """
+
+    from custom_components.portfolio_engine.providers.asset_search_base import (
+        AssetSearchResult,
+    )
+
+    calls: list[tuple[str, int]] = []
+
+    async def _fake_async_search(self, query, limit=10):
+        calls.append((query, limit))
+        return [
+            AssetSearchResult(
+                symbol="VWCE.DE",
+                name="Vanguard FTSE All-World UCITS ETF",
+                exchange="XETRA",
+                currency="EUR",
+                asset_type="etf",
+            )
+        ][:limit]
+
+    with patch(
+        "custom_components.portfolio_engine.providers.yahoo_finance_asset_search."
+        "YahooFinanceAssetSearchProvider.async_search",
+        new=_fake_async_search,
+    ):
+        yield calls
 
 
 @pytest.fixture

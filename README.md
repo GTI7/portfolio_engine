@@ -1,14 +1,19 @@
-# Portfolio Engine — v1.0.1
+# Portfolio Engine — v1.1.0
 
 [![Tests](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml/badge.svg)](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml)
 
-**v1.0.1** (integration) — a targeted Yahoo Finance 401 fix plus a
-test-infrastructure cleanup, not a milestone. The engine itself remains
-v1.0.0, unchanged since Milestone 10 (see ADR-0007 for why the two are
-versioned independently). See [`PROJECT_STATUS.md`](PROJECT_STATUS.md)
-for the current release, active branch, priority, and known technical
-debt at a glance, and [`CHANGELOG.md`](CHANGELOG.md) for exactly what
-changed in v1.0.1.
+**v1.1.0** (integration) — Milestone 11, Asset Discovery: search Yahoo
+Finance by company/fund name and get back candidate tickers
+(`portfolio_engine.search_assets`), so creating a `holdings.yaml` entry no
+longer requires already knowing the exact ticker. See
+`MILESTONE_11_DESIGN.md` and `docs/user/ASSET_DISCOVERY.md`. The engine
+itself remains v1.0.0, unchanged since Milestone 10 (see ADR-0007 for why
+the two are versioned independently — this milestone's new provider is
+consumed only via an HA service, never touching core calculation). See
+[`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the current release, active
+branch, priority, and known technical debt at a glance, and
+[`CHANGELOG.md`](CHANGELOG.md) for exactly what changed in v1.1.0 (and the
+earlier v1.0.1 Yahoo Finance 401 fix).
 
 **Development history:** Milestone 1: the HA-independent calculation
 core. Milestone 2: wiring it into Home Assistant. Milestone 2.5:
@@ -28,7 +33,8 @@ and everything else at the repository root is for people working on the
 integration's code, not people just running it.
 
 See `MILESTONE_1.md` through `MILESTONE_10.md` (plus `MILESTONE_4_SPEC.md`,
-`MILESTONE_7_DESIGN.md`) for what's in each. See `docs/adr/` (13 ADRs) for
+`MILESTONE_7_DESIGN.md`, `MILESTONE_11_DESIGN.md`) for what's in each. See
+`docs/adr/` (14 ADRs) for
 architectural decisions, `docs/QUALITY_SCALE.md` for an honest HA
 Integration Quality Scale self-assessment, `docs/RELEASE_CHECKLIST.md` for
 what's still needed to actually publish this (a real GitHub repository),
@@ -43,7 +49,7 @@ portfolio_engine/
 ├── repositories/                    # data retrieval — no calculation (ADR-0001)
 ├── providers/                       # market data — no portfolio data (ADR-0002)
 ├── importers/                       # broker export -> Transaction[] (ADR-0013)
-├── custom_components/portfolio_engine/   # the Home Assistant integration (v1.0.1)
+├── custom_components/portfolio_engine/   # the Home Assistant integration (v1.1.0)
 │   ├── manifest.json, const.py
 │   ├── config_flow.py                # + multi-entry support + reconfigure flow (Milestone 10)
 │   ├── coordinator.py
