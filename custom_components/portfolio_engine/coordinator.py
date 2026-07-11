@@ -109,6 +109,12 @@ class PortfolioCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self.entry = entry
 
         investments_path = Path(hass.config.path(entry.data[CONF_INVESTMENTS_PATH]))
+        # Milestone 12: exposed publicly (not just used to construct
+        # self.repository) so services.py's apply_import/create_portfolio
+        # can construct their own YamlPortfolioWriter against the same
+        # base path, without PortfolioRepository itself gaining any write
+        # capability - see docs/adr/0015.
+        self.base_path = investments_path
         self.repository = YamlRepository(investments_path)
 
         session = async_get_clientsession(hass)

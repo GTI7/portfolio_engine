@@ -35,6 +35,8 @@ The same summary also updates `sensor.<portfolio>_last_import` (state = imported
 
 Copy the imported transactions' details into `transactions.yaml` yourself, in the same format as [Getting Started](GETTING_STARTED.md#adding-transaction-history) describes. If a transaction came with a broker-native reference (e.g. IBKR's `transactionID`), the importer already gave it a stable ID (prefixed `ibkr-`) — keep that ID when you copy it in, so a future re-import of the same period correctly recognizes it as a duplicate instead of importing it again.
 
+Prefer not to copy things by hand? **Portfolio Engine: Apply import** will write the report's imported rows to `transactions.yaml` for you, once you've reviewed them — see [Portfolio Import & Setup](PORTFOLIO_IMPORT_AND_SETUP.md).
+
 ## Generic CSV column schema
 
 ```csv
@@ -65,4 +67,4 @@ No. Never. The service only produces a report.
 The duplicate check should catch it — every transaction from the second run will show up in the report's `duplicates` count instead of `imported`, as long as you've already added the first run's results to your actual log (the duplicate check compares against your current `transactions.yaml`, not against the import history itself).
 
 **Can I import into a portfolio that doesn't exist yet?**
-No — create the portfolio (a `holdings.yaml`, per [Getting Started](GETTING_STARTED.md)) first. The import service looks up an already-configured portfolio by ID.
+No — create the portfolio first (by hand, per [Getting Started](GETTING_STARTED.md), or with **Portfolio Engine: Create portfolio** / the Config Flow's guided setup — see [Portfolio Import & Setup](PORTFOLIO_IMPORT_AND_SETUP.md)). The import service looks up an already-configured portfolio by ID.

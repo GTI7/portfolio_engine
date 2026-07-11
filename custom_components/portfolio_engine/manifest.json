@@ -1,7 +1,7 @@
 {
   "domain": "portfolio_engine",
   "name": "Portfolio Engine",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "documentation": "https://github.com/GTI7/portfolio_engine",
   "issue_tracker": "https://github.com/GTI7/portfolio_engine/issues",
   "requirements": ["pyyaml>=6.0"],

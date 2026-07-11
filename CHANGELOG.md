@@ -12,6 +12,18 @@ Entries are grouped by milestone, since that's been this project's actual releas
 
 ## [Unreleased]
 
+## integration 1.1.0 → 1.2.0 / engine unchanged (1.0.0) — Milestone 12: Portfolio Import & Assisted Setup (2026-07-11)
+
+### Added
+- `[engine]` `PortfolioWriter` interface and `YamlPortfolioWriter` implementation (`repositories/writer_base.py`, `repositories/yaml_portfolio_writer.py`) — the first write path to `holdings.yaml`/`transactions.yaml` this project has ever had, deliberately kept as a separate interface from the read-only `PortfolioRepository` (ADR-0015) so every existing reader's "no side effects" guarantee stays intact and auditable. Every write goes through a single-rotation `.bak` copy + temp-file + atomic `os.replace()` sequence (ADR-0016) — no direct in-place overwrite anywhere.
+- `[integration]` `portfolio_engine.apply_import` service — writes a portfolio's currently-pending `import_transactions` report's imported (non-duplicate) rows to `transactions.yaml`. All-or-nothing, no per-row selection in this version. Clears the report on success, so a second call without a fresh import fails clearly instead of double-appending. `import_transactions` itself is completely unmodified — still report-only, per its own long-standing guarantee (see ADR-0017, closing the gap `MILESTONE_9.md` flagged at the time).
+- `[integration]` `portfolio_engine.create_portfolio` service — creates a brand-new portfolio (optionally pre-populated with holdings, typically assembled from prior `search_assets` calls) under an already-configured investments path. Scoped by `investments_path` rather than portfolio ID, since the target portfolio doesn't exist yet to resolve by id. Never overwrites an existing portfolio.
+- `[integration]` Config Flow guided setup branch — today's `investments_path_not_found` dead end gains an opt-in path (tick "create a new portfolio here" on the same form) that creates the folder and a first portfolio inline, including a repeatable search-and-add-holding loop built on Milestone 11's `search_assets`/`YahooFinanceAssetSearchProvider`, completely unmodified. Declining leaves today's error exactly as it was. Adding a 2nd+ portfolio under an already-configured path always uses `create_portfolio` instead (ADR-0018).
+- ADR-0015 (separate `PortfolioWriter` interface), ADR-0016 (atomic writes, single-rotation `.bak` backup policy — a versioned/multi-generation backup history is explicitly out of scope for now, noted as a possible future follow-up), ADR-0017 (`apply_import` as a separate, all-or-nothing service), ADR-0018 (Config Flow vs. `create_portfolio` service split).
+- `MILESTONE_12_DESIGN.md`, including a Portfolio Identity Model section documenting that portfolio identity is filename-based (the directory name), never metadata (`holdings.yaml`'s own `name:` field is purely cosmetic), and the pre-existing (not introduced by this milestone) ambiguity in `_find_coordinator_for_portfolio` if two different investments paths ever contain a same-named portfolio subdirectory.
+- `docs/user/PORTFOLIO_IMPORT_AND_SETUP.md`; a pointer added from `docs/user/BROKER_IMPORT.md` to it.
+- 32 new tests: 11 engine unit (`tests/test_yaml_portfolio_writer.py` — atomic replace, `.bak` rotation, create/append behavior), 21 real-HA-harness (`tests_ha/test_apply_import_ha.py`, `tests_ha/test_create_portfolio_ha.py`, `tests_ha/test_config_flow_guided_setup_ha.py`) — 478 tests total (up from 449 at the previous release): 332 engine, 45 pure-logic integration, 101 real-HA-harness.
+
 ## integration 1.0.1 → 1.1.0 / engine unchanged (1.0.0) — Milestone 11: Asset Discovery (2026-07-11)
 
 ### Added

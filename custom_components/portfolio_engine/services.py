@@ -44,14 +44,16 @@ from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .const import DOMAIN
+from .const import CONF_INVESTMENTS_PATH, DOMAIN
 from .coordinator import PortfolioCoordinator
+from .engine.models import Holding
 from .importers.base import BrokerImportProvider
 from .importers.generic_csv_importer import GenericCsvImporter
 from .importers.ibkr_flex_query_importer import IbkrFlexQueryImporter
 from .importers.report import build_import_report
 from .providers.asset_search_base import AssetSearchResult
 from .providers.yahoo_finance_asset_search import YahooFinanceAssetSearchProvider
+from .repositories.yaml_portfolio_writer import YamlPortfolioWriter
 from .yahoo_auth import YahooCrumbFetcher
 
 _LOGGER = logging.getLogger(__name__)
@@ -59,6 +61,8 @@ _LOGGER = logging.getLogger(__name__)
 SERVICE_IMPORT_TRANSACTIONS = "import_transactions"
 SERVICE_EXPORT_PORTFOLIO_DATA = "export_portfolio_data"
 SERVICE_SEARCH_ASSETS = "search_assets"
+SERVICE_APPLY_IMPORT = "apply_import"
+SERVICE_CREATE_PORTFOLIO = "create_portfolio"
 
 #: The two importers this milestone ships, per MILESTONE_9's explicit
 #: "start with only two importers" scope - adding a third later is a
@@ -88,6 +92,40 @@ SEARCH_ASSETS_SCHEMA = vol.Schema(
     {
         vol.Required("query"): cv.string,
         vol.Optional("limit", default=10): vol.All(int, vol.Range(min=1, max=25)),
+    }
+)
+
+#: Deliberately just `portfolio` - all-or-nothing apply, no per-row
+#: selection in this milestone. See docs/adr/0017.
+APPLY_IMPORT_SCHEMA = vol.Schema(
+    {
+        vol.Required("portfolio"): cv.string,
+    }
+)
+
+#: Fields mirror Holding (engine/models.py) directly - Holding.__post_init__
+#: validation is what actually rejects malformed entries, not this schema.
+HOLDING_SCHEMA = vol.Schema(
+    {
+        vol.Required("symbol"): cv.string,
+        vol.Required("shares"): vol.Coerce(float),
+        vol.Required("avg_price"): vol.Coerce(float),
+        vol.Required("currency"): cv.string,
+        vol.Required("type"): cv.string,
+        vol.Optional("account"): cv.string,
+    }
+)
+
+#: Scoped by investments_path, not portfolio - the target portfolio doesn't
+#: exist yet to resolve by id. See docs/adr/0018.
+CREATE_PORTFOLIO_SCHEMA = vol.Schema(
+    {
+        vol.Required("investments_path"): cv.string,
+        vol.Required("portfolio_id"): cv.string,
+        vol.Required("name"): cv.string,
+        vol.Optional("base_currency", default="EUR"): cv.string,
+        vol.Optional("cash_balance", default=0.0): vol.Coerce(float),
+        vol.Optional("holdings", default=list): [HOLDING_SCHEMA],
     }
 )
 
@@ -129,6 +167,32 @@ def async_register_services(hass: HomeAssistant) -> None:
             SERVICE_SEARCH_ASSETS,
             _handle_search_assets,
             schema=SEARCH_ASSETS_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_APPLY_IMPORT):
+
+        async def _handle_apply_import(call: ServiceCall) -> ServiceResponse:
+            return await _async_apply_import(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_APPLY_IMPORT,
+            _handle_apply_import,
+            schema=APPLY_IMPORT_SCHEMA,
+            supports_response=SupportsResponse.OPTIONAL,
+        )
+
+    if not hass.services.has_service(DOMAIN, SERVICE_CREATE_PORTFOLIO):
+
+        async def _handle_create_portfolio(call: ServiceCall) -> ServiceResponse:
+            return await _async_create_portfolio(hass, call)
+
+        hass.services.async_register(
+            DOMAIN,
+            SERVICE_CREATE_PORTFOLIO,
+            _handle_create_portfolio,
+            schema=CREATE_PORTFOLIO_SCHEMA,
             supports_response=SupportsResponse.OPTIONAL,
         )
 
@@ -210,6 +274,149 @@ def _find_coordinator_for_portfolio(
         if coordinator.data and coordinator.data.get("portfolio_id") == portfolio_id:
             return coordinator
     return None
+
+
+async def _async_apply_import(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
+    """Milestone 12 — writes a previously-reviewed ImportReport's `imported`
+    rows to transactions.yaml. Deliberately a separate service from
+    import_transactions, which is unmodified by this milestone and still
+    only ever builds and stores a report - see docs/adr/0017.
+    """
+    portfolio_id = call.data["portfolio"]
+
+    coordinator = _find_coordinator_for_portfolio(hass, portfolio_id)
+    if coordinator is None:
+        raise ServiceValidationError(
+            f"No configured Portfolio Engine portfolio found with id {portfolio_id!r}"
+        )
+
+    report = await coordinator.import_report_store.async_get_last_report(portfolio_id)
+    if report is None:
+        raise ServiceValidationError(
+            f"No pending import report for portfolio {portfolio_id!r} - "
+            "run import_transactions first."
+        )
+
+    writer = YamlPortfolioWriter(coordinator.base_path)
+    try:
+        # Only report.imported is ever written - never .duplicates or
+        # .rejected. See docs/adr/0017.
+        await hass.async_add_executor_job(
+            _append_transactions_sync, writer, portfolio_id, report.imported
+        )
+    except OSError as err:
+        raise ServiceValidationError(
+            f"Could not write transactions for {portfolio_id!r}: {err}"
+        ) from err
+
+    await coordinator.import_report_store.async_clear_report(portfolio_id)
+    await coordinator.async_request_refresh()
+
+    _LOGGER.info(
+        "Portfolio Engine apply_import for %s: %d transaction(s) applied",
+        portfolio_id,
+        len(report.imported),
+    )
+
+    return {"portfolio": portfolio_id, "applied_count": len(report.imported)}
+
+
+def _append_transactions_sync(
+    writer: YamlPortfolioWriter, portfolio_id: str, transactions: list[Any]
+) -> None:
+    """Runs inside hass.async_add_executor_job's thread. Calls the writer's
+    private sync method directly rather than its public `async def`
+    wrapper - the wrapper's body is itself fully synchronous (no real
+    `await` inside), so going through it here would mean spinning up a new
+    event loop in this executor thread just to immediately call back into
+    sync code. Same offload shape _read_file/_write_export_file already
+    use for import/export, just one layer more direct.
+    """
+    writer._append_transactions_sync(portfolio_id, transactions)  # noqa: SLF001
+
+
+def _find_coordinator_for_investments_path(
+    hass: HomeAssistant, investments_path: str
+) -> PortfolioCoordinator | None:
+    """Milestone 12 — resolves by the configured investments_path rather
+    than an existing portfolio_id, since create_portfolio's whole point is
+    that the target portfolio doesn't exist in any coordinator's data yet.
+    See docs/adr/0018 and MILESTONE_12_DESIGN.md's Portfolio Identity Model.
+    """
+    for coordinator in hass.data.get(DOMAIN, {}).values():
+        if coordinator.entry.data.get(CONF_INVESTMENTS_PATH) == investments_path:
+            return coordinator
+    return None
+
+
+async def _async_create_portfolio(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:
+    """Milestone 12 — creates a brand-new portfolio under an
+    already-configured investments path, optionally pre-populated with
+    holdings (typically assembled from one or more prior search_assets
+    calls). Never overwrites an existing portfolio - see docs/adr/0018.
+    """
+    investments_path = call.data["investments_path"]
+    portfolio_id = call.data["portfolio_id"]
+    name = call.data["name"]
+    base_currency = call.data["base_currency"]
+    cash_balance = call.data["cash_balance"]
+
+    coordinator = _find_coordinator_for_investments_path(hass, investments_path)
+    if coordinator is None:
+        raise ServiceValidationError(
+            f"No configured Portfolio Engine entry found for investments_path "
+            f"{investments_path!r}"
+        )
+
+    # Holding.__post_init__ (engine/models.py) is what actually validates
+    # each entry - this schema only shapes the raw input, it doesn't
+    # duplicate that validation.
+    holdings = [Holding(**h) for h in call.data["holdings"]]
+
+    writer = YamlPortfolioWriter(coordinator.base_path)
+    try:
+        await hass.async_add_executor_job(
+            _create_portfolio_sync,
+            writer,
+            portfolio_id,
+            name,
+            base_currency,
+            cash_balance,
+            holdings,
+        )
+    except FileExistsError as err:
+        raise ServiceValidationError(str(err)) from err
+    except OSError as err:
+        raise ServiceValidationError(
+            f"Could not create portfolio {portfolio_id!r}: {err}"
+        ) from err
+
+    await coordinator.async_request_refresh()
+
+    _LOGGER.info(
+        "Portfolio Engine create_portfolio: %s under %s (%d holding(s))",
+        portfolio_id,
+        investments_path,
+        len(holdings),
+    )
+
+    return {"investments_path": investments_path, "portfolio": portfolio_id}
+
+
+def _create_portfolio_sync(
+    writer: YamlPortfolioWriter,
+    portfolio_id: str,
+    name: str,
+    base_currency: str,
+    cash_balance: float,
+    holdings: list[Holding],
+) -> None:
+    """Same direct-to-private-sync-method offload shape as
+    _append_transactions_sync above.
+    """
+    writer._create_portfolio_sync(  # noqa: SLF001
+        portfolio_id, name, base_currency, cash_balance, holdings
+    )
 
 
 async def _async_export_portfolio_data(hass: HomeAssistant, call: ServiceCall) -> ServiceResponse:

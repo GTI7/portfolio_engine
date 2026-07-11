@@ -87,3 +87,87 @@ search_assets:
           min: 1
           max: 25
           mode: box
+
+apply_import:
+  name: Apply import
+  description: >-
+    Write the currently pending import_transactions report's imported
+    (non-duplicate) rows to transactions.yaml. All-or-nothing - fails if
+    there is no pending report for this portfolio, and clears the report
+    once applied, so calling this twice in a row without a fresh
+    import_transactions call fails clearly instead of double-appending.
+  fields:
+    portfolio:
+      name: Portfolio
+      description: >-
+        The portfolio ID to apply the pending report for (the folder name
+        under your investments path, e.g. "demo_portfolio").
+      required: true
+      example: demo_portfolio
+      selector:
+        text:
+
+create_portfolio:
+  name: Create portfolio
+  description: >-
+    Create a brand-new portfolio under an already-configured investments
+    path, optionally pre-populated with holdings. Never overwrites an
+    existing portfolio - fails if one already exists at portfolio_id. To
+    set up your very first portfolio (before any investments path is
+    configured), use the guided setup step in the integration's Config
+    Flow instead - this service is for adding portfolios after that.
+  fields:
+    investments_path:
+      name: Investments path
+      description: >-
+        The investments path of an already-configured Portfolio Engine
+        entry (must match exactly, including relative path).
+      required: true
+      example: investments
+      selector:
+        text:
+    portfolio_id:
+      name: Portfolio ID
+      description: >-
+        The new portfolio's folder name - this becomes its identity.
+        Cosmetic naming lives in the separate "name" field.
+      required: true
+      example: new_portfolio
+      selector:
+        text:
+    name:
+      name: Display name
+      description: >-
+        A cosmetic, human-readable name - never used as an identifier.
+      required: true
+      example: New Portfolio
+      selector:
+        text:
+    base_currency:
+      name: Base currency
+      description: The portfolio's base currency (defaults to EUR).
+      required: false
+      example: USD
+      selector:
+        text:
+    cash_balance:
+      name: Cash balance
+      description: Starting cash balance (defaults to 0).
+      required: false
+      example: 1000.0
+      selector:
+        number:
+          min: 0
+          mode: box
+    holdings:
+      name: Holdings
+      description: >-
+        Optional list of starting holdings, each shaped like
+        {symbol, shares, avg_price, currency, type, account}. Typically
+        assembled from one or more prior search_assets calls.
+      required: false
+      example: >-
+        [{"symbol": "AAPL", "shares": 10, "avg_price": 150.0,
+        "currency": "USD", "type": "stock"}]
+      selector:
+        object:

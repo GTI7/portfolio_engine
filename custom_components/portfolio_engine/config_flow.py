@@ -19,9 +19,22 @@ Milestone 10: two configuration-UX fixes.
    investments path in place, instead of deleting and re-adding the whole
    config entry (which would also mean rebuilding Store-backed snapshot/
    import history under a new entry_id) just to fix a typo.
+
+Milestone 12: today's investments_path_not_found dead end gains a guided
+branch. Ticking "create_new_portfolio" on the same form instead walks
+through creating the folder and a first portfolio inline (name/currency/
+cash, then a repeatable search-and-add-holding loop using search_assets's
+own YahooFinanceAssetSearchProvider directly - no config entry/coordinator
+exists yet at this point to call the HA service through). Declining
+(leaving the box unchecked) shows exactly today's existing error,
+unchanged. Adding a 2nd+ portfolio under an already-configured path always
+uses the portfolio_engine.create_portfolio service instead - see
+docs/adr/0018 for why this is split rather than one always-available
+wizard.
 """
 from __future__ import annotations
 
+import functools
 from pathlib import Path
 from typing import Any
 
@@ -29,6 +42,7 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.data_entry_flow import FlowResult
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import (
     CONF_INVESTMENTS_PATH,
@@ -38,6 +52,14 @@ from .const import (
     DOMAIN,
     MIN_UPDATE_INTERVAL_MINUTES,
 )
+from .engine.models import Holding
+from .providers.asset_search_base import AssetSearchResult
+from .providers.yahoo_finance_asset_search import YahooFinanceAssetSearchProvider
+from .repositories.yaml_portfolio_writer import YamlPortfolioWriter
+from .services import _plain_json_fetch
+from .yahoo_auth import YahooCrumbFetcher
+
+CONF_CREATE_NEW_PORTFOLIO = "create_new_portfolio"
 
 
 def _investments_path_exists(hass: HomeAssistant, relative_path: str) -> bool:
@@ -58,6 +80,16 @@ class PortfolioEngineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             investments_path = user_input[CONF_INVESTMENTS_PATH]
 
             if not _investments_path_exists(self.hass, investments_path):
+                if user_input.get(CONF_CREATE_NEW_PORTFOLIO):
+                    # Milestone 12: opted into guided setup instead of the
+                    # plain error below - stash what's already been entered
+                    # and walk through creating the folder + a first
+                    # portfolio, rather than dead-ending here. Declining
+                    # (box left unchecked, the default) falls straight
+                    # through to today's unchanged error.
+                    self._investments_path = investments_path
+                    self._update_interval_minutes = user_input[CONF_UPDATE_INTERVAL_MINUTES]
+                    return await self.async_step_guided_portfolio()
                 errors["base"] = "investments_path_not_found"
             else:
                 # Milestone 10: unique per investments_path, not per domain
@@ -70,7 +102,12 @@ class PortfolioEngineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
                 return self.async_create_entry(
                     title=f"Portfolio Engine ({investments_path})",
-                    data=user_input,
+                    data={
+                        CONF_INVESTMENTS_PATH: investments_path,
+                        CONF_UPDATE_INTERVAL_MINUTES: user_input[
+                            CONF_UPDATE_INTERVAL_MINUTES
+                        ],
+                    },
                 )
 
         schema = vol.Schema(
@@ -81,9 +118,143 @@ class PortfolioEngineConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 vol.Required(
                     CONF_UPDATE_INTERVAL_MINUTES, default=DEFAULT_UPDATE_INTERVAL_MINUTES
                 ): vol.All(int, vol.Range(min=MIN_UPDATE_INTERVAL_MINUTES)),
+                vol.Optional(CONF_CREATE_NEW_PORTFOLIO, default=False): bool,
             }
         )
         return self.async_show_form(step_id="user", data_schema=schema, errors=errors)
+
+    async def async_step_guided_portfolio(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Milestone 12, step 1 of guided setup: the new portfolio's own
+        fields (not the config entry's - investments_path/update_interval
+        were already collected on the "user" step just before this).
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            self._guided_portfolio_id = user_input["portfolio_id"]
+            self._guided_name = user_input["name"]
+            self._guided_base_currency = user_input["base_currency"]
+            self._guided_cash_balance = user_input["cash_balance"]
+            self._guided_holdings: list[Holding] = []
+            return await self.async_step_guided_search()
+
+        schema = vol.Schema(
+            {
+                vol.Required("portfolio_id"): str,
+                vol.Required("name"): str,
+                vol.Optional("base_currency", default="EUR"): str,
+                vol.Optional("cash_balance", default=0.0): vol.Coerce(float),
+            }
+        )
+        return self.async_show_form(
+            step_id="guided_portfolio", data_schema=schema, errors=errors
+        )
+
+    async def async_step_guided_search(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Milestone 12, step 2 (repeatable): search for a holding by name.
+        A blank query finishes the loop and creates the portfolio with
+        whatever holdings have been added so far (zero is fine - matches
+        create_portfolio's own optional `holdings` list).
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            query = user_input.get("query", "").strip()
+            if not query:
+                return await self._async_finish_guided_setup()
+
+            session = async_get_clientsession(self.hass)
+            search_fetch = functools.partial(_plain_json_fetch, session)
+            quote_fetch = YahooCrumbFetcher(session).fetch
+            provider = YahooFinanceAssetSearchProvider(
+                search_fetch=search_fetch, quote_fetch=quote_fetch
+            )
+            results = await provider.async_search(query, limit=10)
+
+            if not results:
+                errors["base"] = "no_matches"
+            else:
+                self._guided_search_results: list[AssetSearchResult] = results
+                return await self.async_step_guided_pick()
+
+        schema = vol.Schema({vol.Optional("query", default=""): str})
+        return self.async_show_form(
+            step_id="guided_search", data_schema=schema, errors=errors
+        )
+
+    async def async_step_guided_pick(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Milestone 12, step 3: pick one of the prior step's search results
+        and enter shares/avg_price/account, then loop back to search for
+        another holding (or finish, by submitting a blank query there).
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            selected = self._guided_search_results[int(user_input["selection"])]
+            self._guided_holdings.append(
+                Holding(
+                    symbol=selected.symbol,
+                    shares=user_input["shares"],
+                    avg_price=user_input["avg_price"],
+                    currency=selected.currency,
+                    type=selected.asset_type,
+                    account=user_input.get("account") or None,
+                )
+            )
+            return await self.async_step_guided_search()
+
+        options = {
+            str(i): f"{r.symbol} — {r.name} ({r.exchange}, {r.currency})"
+            for i, r in enumerate(self._guided_search_results)
+        }
+        schema = vol.Schema(
+            {
+                vol.Required("selection"): vol.In(options),
+                vol.Required("shares"): vol.Coerce(float),
+                vol.Required("avg_price"): vol.Coerce(float),
+                vol.Optional("account"): str,
+            }
+        )
+        return self.async_show_form(
+            step_id="guided_pick", data_schema=schema, errors=errors
+        )
+
+    async def _async_finish_guided_setup(self) -> FlowResult:
+        """Writes the new portfolio directly via YamlPortfolioWriter - no
+        config entry (and therefore no coordinator) exists yet at this
+        point in the flow to call the create_portfolio service through.
+        See docs/adr/0018.
+        """
+        base_path = Path(self.hass.config.path(self._investments_path))
+        writer = YamlPortfolioWriter(base_path)
+        try:
+            await self.hass.async_add_executor_job(
+                writer._create_portfolio_sync,  # noqa: SLF001
+                self._guided_portfolio_id,
+                self._guided_name,
+                self._guided_base_currency,
+                self._guided_cash_balance,
+                self._guided_holdings,
+            )
+        except OSError:
+            return self.async_abort(reason="guided_setup_write_failed")
+
+        await self.async_set_unique_id(self._investments_path)
+        self._abort_if_unique_id_configured()
+
+        return self.async_create_entry(
+            title=f"Portfolio Engine ({self._investments_path})",
+            data={
+                CONF_INVESTMENTS_PATH: self._investments_path,
+                CONF_UPDATE_INTERVAL_MINUTES: self._update_interval_minutes,
+            },
+        )
 
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None

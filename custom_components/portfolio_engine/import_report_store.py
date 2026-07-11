@@ -43,3 +43,16 @@ class ImportReportStore:
         data = await self._store.async_load() or {}
         data[report.portfolio_id] = report.to_dict()
         await self._store.async_save(data)
+
+    async def async_clear_report(self, portfolio_id: str) -> None:
+        """Milestone 12: called by apply_import once a report's `imported`
+        rows have been written to transactions.yaml. Turns "pending" into
+        "absent" rather than adding an `applied: bool` field - this store
+        already only ever holds one thing, the *pending* report, per this
+        class's own docstring; modeling "already applied" as "no longer
+        present" keeps that scope intact instead of growing it. See
+        docs/adr/0017.
+        """
+        data = await self._store.async_load() or {}
+        data.pop(portfolio_id, None)
+        await self._store.async_save(data)
