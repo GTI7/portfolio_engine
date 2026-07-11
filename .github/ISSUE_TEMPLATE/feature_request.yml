@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest a new entity, service, or capability.
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check `PROJECT_STATUS.md` and the `MILESTONE_*.md` history first — it may already be planned, deferred with a reason, or deliberately out of scope (see `docs/ENTITY_API_POLICY.md` for the rules new entities have to meet).
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: Describe the use case, not just the feature.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: A new entity, a new service, a config option, etc.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

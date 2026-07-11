@@ -1,0 +1,49 @@
+name: Bug report
+description: Something isn't working the way it should.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Before filing, check `docs/user/TROUBLESHOOTING.md` and `docs/COMPATIBILITY_POLICY.md` (minimum supported HA version) — your issue may already be documented there.
+  - type: input
+    id: version
+    attributes:
+      label: Integration version
+      description: See Settings -> Devices & Services -> Portfolio Engine, or `manifest.json`'s `version` field.
+      placeholder: "1.0.1"
+    validations:
+      required: true
+  - type: input
+    id: ha-version
+    attributes:
+      label: Home Assistant Core version
+      placeholder: "2025.1.4"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics
+      description: Settings -> Devices & Services -> Portfolio Engine -> Download diagnostics. Diagnostics redact the investments path; paste the rest here.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Settings -> System -> Logs, filtered to `custom_components.portfolio_engine`.
+      render: text
