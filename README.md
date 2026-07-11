@@ -1,5 +1,7 @@
 # Portfolio Engine — v1.0.0 (Milestones 1 through 10)
 
+[![Tests](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml/badge.svg)](https://github.com/GTI7/portfolio_engine/actions/workflows/tests.yml)
+
 **v1.0.0.** See [`PROJECT_STATUS.md`](PROJECT_STATUS.md) for the current
 release, active branch, priority, and known technical debt at a glance.
 Milestone 1: the HA-independent calculation core. Milestone 2:

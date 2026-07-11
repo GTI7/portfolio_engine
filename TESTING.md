@@ -14,6 +14,10 @@ A sixth category is referenced but not yet built out as its own automated thing 
 
 `tests/` and `tests_integration/` can also be run together in one invocation — either `python -m pytest` (bare; `pytest.ini`'s `testpaths` scopes default collection to exactly these two directories) or explicitly `python -m pytest tests tests_integration`. `tests_ha/` is deliberately left out of that default scope and still needs its own isolated venv invocation, per its row above.
 
+## Continuous integration
+
+`.github/workflows/tests.yml` runs on every push and pull request against `main`, as two separate jobs matching the separation above rather than one combined job: **`fast-suite`** (`tests/` + `tests_integration/`, matrixed across Python 3.11 and 3.12) and **`ha-harness`** (`tests_ha/`, installing `requirements-ha-test.txt` fresh each run since GitHub's runners are already isolated per job — no persistent `.ha_test_venv` needed the way a local machine has one). Both run on `ubuntu-latest`; `tests_ha/`'s underlying `homeassistant` package assumes a POSIX event loop and does not run natively on Windows, which is why this suite could only be verified in CI rather than on every contributor's machine.
+
 ## Why kept separate rather than one big `tests/` tree
 
 - **Dependency isolation**: `tests_ha/` alone justifies pulling in the entire `homeassistant` package. Mixing it into the same tree as `tests/`/`tests_integration/` would force every contributor (and every CI run of the fast suite) to pay that cost, even when working purely on engine logic.
