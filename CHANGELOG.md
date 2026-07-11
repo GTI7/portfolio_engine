@@ -12,6 +12,10 @@ Entries are grouped by milestone, since that's been this project's actual releas
 
 ## [Unreleased]
 
+### Fixed
+- `[engine]` **Naive/aware datetime crash in `MwrCalculator` (via `xirr()`) for any portfolio with its first `DEPOSIT`/`WITHDRAWAL`/`TRANSFER_IN`/`TRANSFER_OUT` transaction.** `YamlRepository._parse_date()` parsed a bare date (e.g. `2024-01-10`, no time/offset component) as a naive `datetime`, while `MwrCalculator` compares transaction dates against `datetime.now(UTC)` (aware) — mixing the two raises `TypeError: can't compare offset-naive and offset-aware datetimes`, both when `xirr()` computes `t0 = min(...)` over cash flows and, more subtly, when `YamlRepository` sorts *all* of a portfolio's transactions chronologically (a single naive date among otherwise-aware ones is enough to break that sort too). Latent since Milestone 5 (MWR's introduction) — never caught because every portfolio that also happened to hit this code path in practice used full ISO timestamps with an explicit offset, and no existing test used a bare date on an external-cash-flow transaction. Fixed in `_parse_date()` (both the standalone `repositories/yaml_repository.py` and its vendored copy under `custom_components/portfolio_engine/`): a parsed date with no `tzinfo` is now given one (UTC), so every date this repository produces is consistently aware — dates that already specify a real offset are left untouched.
+- 2 new tests (`tests/test_transaction_repository.py`): a bare-date transaction parses as timezone-aware, and a bare date sorts correctly alongside an explicit-offset date without raising.
+
 ## 1.0.1 (2026-07-11)
 
 ### Fixed

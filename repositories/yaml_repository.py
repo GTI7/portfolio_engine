@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import yaml
@@ -109,4 +109,17 @@ def _parse_date(value: str) -> datetime:
     # datetime.fromisoformat added "Z" suffix support in Python 3.11; this
     # normalization keeps transactions.yaml portable to slightly older
     # interpreters without depending on that specific version behavior.
-    return datetime.fromisoformat(value.replace("Z", "+00:00"))
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    # A bare date (no time/offset component, e.g. "2024-01-15") parses as
+    # naive. MwrCalculator/TwrCalculator compare transaction dates against
+    # datetime.now(UTC) (aware) - mixing the two raises TypeError at
+    # comparison time, not just when both happen to appear in the same
+    # xirr() call: sorting transactions below compares every date against
+    # every other, so even a single naive date among otherwise-aware ones
+    # breaks it. Coercing to UTC here (never converting an already-aware
+    # value with a real offset - only attaching UTC when there was none to
+    # begin with) keeps every date this repository produces consistently
+    # aware, matching what the calculators assume.
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=UTC)
+    return parsed

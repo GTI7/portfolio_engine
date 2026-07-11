@@ -27,6 +27,6 @@ If this is being picked up now, the concrete next steps are exactly the ones `MA
 
 - **Engine**: v1.0.0, stable API declaration (no calculation code changed across Milestones 8–10, nor by v1.0.1) — see `engine/__init__.py`'s own docstring.
 - **Integration**: v1.0.1, `custom_components/portfolio_engine/` — see `CHANGELOG.md` for the v1.0.1 Yahoo Finance 401 fix.
-- **Tests**: 424 total (305 engine, 42 pure-logic integration, 77 real-HA-harness) — `TESTING.md`.
+- **Tests**: 426 total (307 engine, 42 pure-logic integration, 77 real-HA-harness) — `TESTING.md`.
 - **Documentation**: contributor-facing docs at the repository root and `docs/`; end-user docs at `docs/user/`; `docs/QUALITY_SCALE.md` for the honest HA Quality Scale self-assessment; `docs/RELEASE_CHECKLIST.md` for what a real GitHub repository still needs before actual HACS publication.
 - **Milestone history**: `MILESTONE_1.md` through `MILESTONE_10.md`, each an honest account of what shipped, what was found and fixed along the way, and what was deliberately deferred.

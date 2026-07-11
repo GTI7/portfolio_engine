@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -211,6 +212,56 @@ transactions:
 
     assert len(transactions) == 1
     assert transactions[0].id  # non-empty, generated
+
+
+@pytest.mark.asyncio
+async def test_bare_date_transaction_is_timezone_aware(tmp_path):
+    """A plain "YYYY-MM-DD" date (no time/offset component) must still
+    parse to an aware datetime. MwrCalculator/TwrCalculator compare
+    transaction dates against datetime.now(UTC) (aware) - a naive date
+    slipping through here raises TypeError at comparison time the first
+    time a portfolio has any DEPOSIT/WITHDRAWAL/TRANSFER_* transaction,
+    which every existing fixture in this file avoids by always specifying
+    a full ISO timestamp with a "Z"/offset suffix.
+    """
+    portfolio_dir = tmp_path / "demo"
+    write_holdings(portfolio_dir)
+    write_transactions(
+        portfolio_dir,
+        "transactions:\n  - type: deposit\n    date: '2024-01-10'\n"
+        "    amount: 5000.0\n    currency: USD\n",
+    )
+
+    repo = YamlRepository(tmp_path)
+    transactions = await repo.async_get_transactions("demo")
+
+    assert transactions[0].date.tzinfo is not None
+    # Must not raise - this is the exact comparison MwrCalculator/xirr do.
+    assert transactions[0].date < datetime.now(UTC)
+
+
+@pytest.mark.asyncio
+async def test_bare_date_and_explicit_offset_dates_sort_together(tmp_path):
+    """Sorting mixes every transaction's date with every other's
+    (transactions.sort(key=lambda t: t.date)) - a bare date among
+    otherwise-aware dates must not make that comparison raise.
+    """
+    portfolio_dir = tmp_path / "demo"
+    write_holdings(portfolio_dir)
+    write_transactions(
+        portfolio_dir,
+        "transactions:\n"
+        "  - type: deposit\n    date: '2024-01-10'\n"
+        "    amount: 5000.0\n    currency: USD\n"
+        "  - type: buy\n    date: '2024-01-15T14:30:00Z'\n"
+        "    symbol: AAPL\n    shares: 10\n    price: 100.0\n"
+        "    amount: 1000.0\n    currency: USD\n",
+    )
+
+    repo = YamlRepository(tmp_path)
+    transactions = await repo.async_get_transactions("demo")
+
+    assert [t.type.value for t in transactions] == ["deposit", "buy"]
 
 
 @pytest.mark.asyncio
