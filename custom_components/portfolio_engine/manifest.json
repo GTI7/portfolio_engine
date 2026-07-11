@@ -2,10 +2,10 @@
   "domain": "portfolio_engine",
   "name": "Portfolio Engine",
   "version": "1.0.1",
-  "documentation": "https://github.com/example/ha-portfolio-engine",
-  "issue_tracker": "https://github.com/example/ha-portfolio-engine/issues",
+  "documentation": "https://github.com/GTI7/portfolio_engine",
+  "issue_tracker": "https://github.com/GTI7/portfolio_engine/issues",
   "requirements": ["pyyaml>=6.0"],
-  "codeowners": ["@example"],
+  "codeowners": ["@GTI7"],
   "config_flow": true,
   "iot_class": "cloud_polling",
   "integration_type": "hub"

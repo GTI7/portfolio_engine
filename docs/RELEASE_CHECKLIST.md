@@ -4,8 +4,8 @@ This is what's left to actually publish Portfolio Engine, once it's in a real, p
 
 ## Before the first tagged release
 
-- [ ] Replace the placeholder URLs in `manifest.json` (`documentation`, `issue_tracker`) with the real repository's URLs.
-- [ ] Replace the placeholder `codeowners` entry (`@example`) with the real GitHub username(s).
+- [x] Replace the placeholder URLs in `manifest.json` (`documentation`, `issue_tracker`) with the real repository's URLs — done for v1.0.1, now pointing at `github.com/GTI7/portfolio_engine`.
+- [x] Replace the placeholder `codeowners` entry (`@example`) with the real GitHub username(s) — now `@GTI7`.
 - [ ] Add a repository description on GitHub (HACS uses it) and topics (`home-assistant`, `hacs`, `custom-integration`, `portfolio`, `finance`, or similar — used for HACS store searchability, not displayed directly).
 - [ ] Confirm the repository is public — HACS only works with public repositories.
 - [ ] Update the copyright line in `LICENSE` if the actual copyright holder differs from the placeholder.
