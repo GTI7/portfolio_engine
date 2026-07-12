@@ -46,6 +46,18 @@ If this is being picked up now, the concrete next steps are exactly the ones `MA
 
 **Not started in v1.0.1 through v1.3.0 either** — v1.0.1 was a targeted patch (Yahoo Finance 401 fix, plus a test-infrastructure cleanup), v1.1.0 (Milestone 11, Asset Discovery) was scoped entirely to a new, additive provider + service, v1.2.0 (Milestone 12, Portfolio Import & Assisted Setup) added a new write path and two services, and v1.3.0 (Milestone 13, Dashboard & User Experience) reworked the dashboard and closed two backend entity gaps — all deliberately away from this. That's real, scoped work — the four touch points above, each needing its existing test coverage to keep passing unmodified plus new coverage for whatever `runtime_data` typing adds — worth doing as its own deliberate pass rather than folded into a status update. Happy to start on it directly if that's the intent; flagging it as a distinct next step rather than assuming.
 
+## Known issue: quotes valued at zero on a failed fetch (flagged, not fixed)
+
+Discovered 2026-07-12 during a live-dashboard UX refinement pass (Overview view) against a real HA instance — not investigated or fixed as part of that pass, per explicit scope (dashboard/presentation only).
+
+**Observed:** `sensor.<portfolio>_value`'s Recorder history oscillates by several hundred currency units every ~15 minutes, in lockstep with `sensor.<portfolio>_positions`' `symbols_missing_quotes` attribute intermittently listing certain symbols (two ETFs, in the observed case). The `Value Trend` history-graph on the Overview dashboard renders this as a flapping, untrustworthy-looking chart even though the chart itself is correct — the underlying data is unstable.
+
+**Root cause, confirmed by reading (not modifying) the code:** `engine/portfolio_engine.py`'s `build_positions` resolves each holding's price as `quote.price if quote else 0.0` (`quote = quotes.get(holding.symbol)`, ~lines 48–49). When a price provider's quote fetch misses for a symbol on a given refresh, that holding's price — and therefore its `market_value`/`market_value_base` — is treated as exactly `0.0` for that cycle rather than carrying forward the last known-good quote. The next successful refresh brings the value back, producing the oscillation. This likely also relates to the small `avg_price` reconciliation discrepancy observed for the same symbol on the same instance.
+
+**Question for a future investigation:** should a missed quote fetch keep falling back to `0.0` (current, confirmed behavior above), or should the position retain its last known-good quote until a fresh one is available? The current behavior makes a transient quote-provider hiccup look like a real, sudden change in portfolio value.
+
+**Scope note:** this is a computation-layer question in `engine/portfolio_engine.py`, to be evaluated as its own deliberate change with its own tests — not folded into dashboard work.
+
 ## Where the rest of the project stands
 
 - **Engine**: v1.0.0, stable API declaration (no calculation code changed across Milestones 8–13, nor by v1.0.1's/v1.1.0's/v1.2.0's/v1.3.0's own HA-facing additions — `AllocationCalculator`/`PerformanceCalculator` used by Milestone 13's two new entities have both existed, unchanged, since Milestones 1/3) — see `engine/__init__.py`'s own docstring.

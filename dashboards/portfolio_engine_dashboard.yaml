@@ -76,12 +76,12 @@ views:
         title: At a Glance
         entities:
           - entity: &value sensor.demo_portfolio_value
+          - entity: &day_change sensor.demo_portfolio_day_change
+            name: Today's Change
           - entity: &invested sensor.demo_portfolio_total_invested
           - entity: &profit sensor.demo_portfolio_total_profit
           - entity: &roi sensor.demo_portfolio_roi
           - entity: &cash sensor.demo_portfolio_cash_balance
-          - entity: &day_change sensor.demo_portfolio_day_change
-            name: Today's Change
       - type: entities
         title: Returns
         entities:
@@ -101,7 +101,7 @@ views:
         entities:
           - entity: *value
       - type: entities
-        title: Additional Metrics (reference — used by other views)
+        title: Additional Metrics
         entities:
           - entity: &dividend_income sensor.demo_portfolio_dividend_income
           - entity: &drawdown sensor.demo_portfolio_drawdown
@@ -120,23 +120,38 @@ views:
         title: Holdings
         content: >
           {% set portfolio_id = 'demo_portfolio' %}
-          {% set positions = state_attr('sensor.' ~ portfolio_id ~ '_positions', 'positions') or [] %}
+          {% set pos_e = 'sensor.' ~ portfolio_id ~ '_positions' %}
+          {% set positions = state_attr(pos_e, 'positions') or [] %}
+          {% set missing_quotes = state_attr(pos_e, 'symbols_missing_quotes') or [] %}
 
           | Symbol | Shares | Value | Gain % |
           |---|---|---|---|
           {% for p in positions %}
+          {% if p.holding.symbol in missing_quotes %}
+          | {{ p.holding.symbol }} | {{ p.holding.shares }} | Price unavailable | — |
+          {% else %}
           | {{ p.holding.symbol }} | {{ p.holding.shares }} | {{ p.market_value_base | round(2) }} | {{ p.gain_pct | round(2) }}% |
+          {% endif %}
           {% endfor %}
+        # A row showing "Price unavailable" means this symbol's latest quote
+        # fetch failed - its value/gain would otherwise show as a fabricated
+        # 0 / -100% (see PROJECT_STATUS.md's "Known issue: quotes valued at
+        # zero on a failed fetch"). Check Administration -> Data Availability.
       - type: entities
         title: Allocation by Type
         entities:
-          - entity: *allocation
+          - type: attribute
+            entity: *allocation
+            attribute: largest_group
             name: Largest Group
-        # Milestone 13 Phase 2: shows the largest allocation group's share
-        # of the portfolio (e.g. "stock", "Cash"). The full breakdown
-        # across every group is available in this entity's own `allocation`
-        # attribute (Developer Tools -> States) - not rendered as a table
-        # here, to keep this addition minimal per that milestone's scope.
+          - entity: *allocation
+            name: Share
+        # Milestone 13 Phase 2: shows the largest allocation group's name and
+        # its share of the portfolio (e.g. "stock" / "34.9%"). The full
+        # breakdown across every group is available in this entity's own
+        # `allocation` attribute (Developer Tools -> States) - not rendered
+        # as a table here, to keep this addition minimal per that
+        # milestone's scope.
       - type: gauge
         entity: *concentration
         name: Largest Position (% of Portfolio)
@@ -152,28 +167,47 @@ views:
           - type: attribute
             entity: *concentration
             attribute: top5_concentration_pct
-            name: Top 5 concentration
+            name: Top 5 Concentration
             suffix: "%"
           - type: attribute
             entity: *concentration
             attribute: diversification_score
-            name: Diversification score
+            name: Diversification Score
             suffix: / 100
       - type: markdown
         title: Best / Worst Performer
         content: >
           {% set portfolio_id = 'demo_portfolio' %}
           {% set conc_e = 'sensor.' ~ portfolio_id ~ '_concentration' %}
+          {% set missing_quotes = state_attr('sensor.' ~ portfolio_id ~ '_positions', 'symbols_missing_quotes') or [] %}
           {% set largest = state_attr(conc_e, 'largest_position') %}
           {% set winner = state_attr(conc_e, 'largest_winner') %}
           {% set loser = state_attr(conc_e, 'largest_loser') %}
 
+          {% if largest and largest.symbol in missing_quotes %}
+          - **Largest position:** unavailable — {{ largest.symbol }}'s price
+            couldn't be retrieved, so its share of the portfolio can't be
+            trusted right now. See Administration → Data Availability.
+          {% else %}
           - **Largest position:** {{ largest.symbol if largest else 'n/a' }}
             ({{ largest.pct_of_portfolio if largest else 0 }}% of portfolio)
+          {% endif %}
+          {% if winner and winner.symbol in missing_quotes %}
+          - **Best performer:** unavailable — {{ winner.symbol }}'s price
+            couldn't be retrieved, so its gain can't be trusted right now.
+            See Administration → Data Availability.
+          {% else %}
           - **Best performer:** {{ winner.symbol if winner else 'n/a' }}
             ({{ winner.gain_pct if winner else 0 }}%)
+          {% endif %}
+          {% if loser and loser.symbol in missing_quotes %}
+          - **Worst performer:** unavailable — {{ loser.symbol }}'s price
+            couldn't be retrieved, so its loss can't be trusted right now.
+            See Administration → Data Availability.
+          {% else %}
           - **Worst performer:** {{ loser.symbol if loser else 'n/a' }}
             ({{ loser.gain_pct if loser else 0 }}%)
+          {% endif %}
 
   # ========================================================== Performance ===
   # "How well is my money working, and by which measure?"
@@ -208,7 +242,7 @@ views:
           - type: attribute
             entity: *twr
             attribute: periods_used
-            name: Snapshot periods used
+            name: Snapshot Periods Used
         # A blank/"unknown" value for the two attribute rows above means
         # there isn't enough snapshot history yet for an annualized figure
         # - Portfolio Engine takes one snapshot per day, so this becomes
@@ -254,10 +288,24 @@ views:
           {% for t in recent %}
           | {{ as_timestamp(t.date) | timestamp_custom('%Y-%m-%d') }} | {{ t.type }} | {{ t.symbol or '-' }} | {{ t.shares or '-' }} | {{ t.amount }} {{ t.currency }} |
           {% endfor %}
+          {% set noted = recent | selectattr('notes') | list %}
+          {% if noted %}
+
+          **Transaction Notes**
+          {% for t in noted %}
+          - {{ as_timestamp(t.date) | timestamp_custom('%Y-%m-%d') }} ({{ t.type }}{% if t.symbol %} · {{ t.symbol }}{% endif %}): {{ t.notes }}
+          {% endfor %}
+          {% endif %}
         # Shows up to the 10 most recent transactions. For the full
         # history, edit your investments/<portfolio>/transactions.yaml
         # directly, or check Settings -> Devices & Services -> Portfolio
         # Engine -> Download Diagnostics for full-log statistics.
+        #
+        # "Transaction Notes" only renders when at least one of the
+        # transactions above has a non-empty `notes` field (e.g. a
+        # backfilled-deposit reminder) - Transaction.notes is a first-class
+        # model field (engine/models.py) that the table itself has no
+        # column for, so it would otherwise be silently dropped.
 
   # ============================================================ Analytics ===
   # "What income am I generating, and how much risk am I carrying?"
@@ -269,7 +317,7 @@ views:
         title: Income & Risk
         entities:
           - entity: *dividend_income
-            name: Dividend Income (rolling 12mo)
+            name: Dividend Income (rolling 12 months)
           - entity: *drawdown
             name: Current Drawdown
           - entity: *volatility
@@ -285,7 +333,7 @@ views:
           - type: attribute
             entity: *dividend_income
             attribute: current_year
-            name: This year
+            name: This Year
             suffix: (portfolio currency)
           - type: attribute
             entity: *dividend_income
@@ -295,7 +343,7 @@ views:
           - type: attribute
             entity: *dividend_income
             attribute: average_monthly_dividend
-            name: Average monthly
+            name: Average Monthly
             suffix: (portfolio currency)
       - type: entities
         title: Drawdown Detail
@@ -303,17 +351,40 @@ views:
           - type: attribute
             entity: *drawdown
             attribute: maximum_drawdown_pct
-            name: Maximum drawdown ever
+            name: Maximum Drawdown Ever
             suffix: "%"
           - type: attribute
             entity: *drawdown
             attribute: peak_value
-            name: Peak value
+            name: Peak Value
             suffix: (portfolio currency)
           - type: attribute
             entity: *drawdown
             attribute: recovery_status
-            name: Recovery status
+            name: Recovery Status
+      - type: entities
+        title: Volatility Detail
+        entities:
+          - type: attribute
+            entity: *volatility
+            attribute: daily_volatility_pct
+            name: Daily Volatility
+            suffix: "%"
+          - type: attribute
+            entity: *volatility
+            attribute: observation_period_days
+            name: Observation Period
+            suffix: days
+          - type: attribute
+            entity: *volatility
+            attribute: sample_count
+            name: Sample Count
+        # Mirrors Dividend Detail / Drawdown Detail's structure. Daily
+        # Volatility is a distinct figure from this entity's own state
+        # (which is *annualized* volatility) - not a duplicate. Observation
+        # Period / Sample Count explain why this stays "unknown" until
+        # enough daily snapshots exist, same role as Performance's
+        # "Snapshot periods used" row for TWR.
 
   # ====================================================== Administration ===
   # "Can I trust this data, and what do I do if I can't?"
