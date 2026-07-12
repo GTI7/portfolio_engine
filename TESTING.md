@@ -14,6 +14,23 @@ A sixth category is referenced but not yet built out as its own automated thing 
 
 `tests/` and `tests_integration/` can also be run together in one invocation — either `python -m pytest` (bare; `pytest.ini`'s `testpaths` scopes default collection to exactly these two directories) or explicitly `python -m pytest tests tests_integration`. `tests_ha/` is deliberately left out of that default scope and still needs its own isolated venv invocation, per its row above.
 
+## Which virtual environment to run each category in
+
+The category table above isn't just a documentation nicety about which command to type — **the two categories must run in different, non-overlapping virtual environments**, not just different directories:
+
+- **`tests/` and `tests_integration/`** must run in a minimal environment built only from `requirements.txt` + `requirements-test.txt`. This environment should never have `homeassistant` or `pytest-homeassistant-custom-component` installed.
+- **`tests_ha/`** must run only in `.ha_test_venv` (or an equivalent environment built from `requirements-ha-test.txt` — see `scripts/setup_ha_test_env.sh`).
+
+**Do not run `tests/`/`tests_integration/` from `.ha_test_venv`.** It isn't just unnecessarily heavy — on Windows it fails outright (see below).
+
+### Windows-specific failure mode: running the fast suite from `.ha_test_venv`
+
+`pytest-homeassistant-custom-component` pulls in `pytest-socket`, which blocks real socket creation for the whole test session (with a carve-out for `AF_UNIX` sockets). On POSIX, asyncio's event loop builds its internal self-pipe via a real `AF_UNIX` `socketpair()`, so it's unaffected. Windows has no native `AF_UNIX` socketpair, so CPython falls back to a real loopback `AF_INET` TCP connection instead — exactly the kind of socket `pytest-socket` blocks.
+
+Running `tests/`/`tests_integration/` from `.ha_test_venv` on Windows therefore fails at `event_loop` fixture setup with `pytest_socket.SocketBlockedError`, immediately followed by a second, unrelated-looking `AttributeError: 'ProactorEventLoop' object has no attribute '_ssock'` when the half-constructed event loop is later garbage-collected. That second error is cosmetic noise from the first failure, not a separate bug — if you see it, check which venv you ran from before investigating further.
+
+This is not a project regression, a dependency mismatch, or a `pytest-asyncio` issue: the installed `pytest-asyncio` version already matches what `pytest-homeassistant-custom-component` pins, and `asyncio_mode = auto` is already set in `pytest.ini`. It's purely a consequence of running the fast suite in the environment reserved for `tests_ha/`.
+
 ## Continuous integration
 
 `.github/workflows/tests.yml` runs on every push and pull request against `main`, as two separate jobs matching the separation above rather than one combined job: **`fast-suite`** (`tests/` + `tests_integration/`, matrixed across Python 3.11 and 3.12) and **`ha-harness`** (`tests_ha/`, installing `requirements-ha-test.txt` fresh each run since GitHub's runners are already isolated per job — no persistent `.ha_test_venv` needed the way a local machine has one). Both run on `ubuntu-latest`; `tests_ha/`'s underlying `homeassistant` package assumes a POSIX event loop and does not run natively on Windows, which is why this suite could only be verified in CI rather than on every contributor's machine.
